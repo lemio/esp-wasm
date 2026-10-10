@@ -1,5 +1,11 @@
 # esp-wasm
 
+
+
+https://github.com/user-attachments/assets/2882351a-78eb-490b-93de-1b445b6149a8
+
+
+
 An ESP32-S3 IDE that runs entirely in the browser. You write Arduino or ESP-IDF code in
 Monaco, clang and GNU ld compile and link it as WebAssembly, and it flashes over USB with
 Web Serial. No backend: the site is static files. Needs Chrome or Edge (Web Serial).
