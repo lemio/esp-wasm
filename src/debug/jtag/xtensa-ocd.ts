@@ -46,6 +46,14 @@ const SR_ICOUNTLEVEL = 237;
 const DEBUG_LEVEL = 6;
 const SR_EPC_DEBUG = 176 + DEBUG_LEVEL;
 
+// ESP32-S3 timer group 1 watchdog (the interrupt watchdog's timer).
+const TIMG1_BASE = 0x60020000;
+const TIMG1_WDTCONFIG0 = TIMG1_BASE + 0x48;
+const TIMG1_WDTFEED = TIMG1_BASE + 0x60;
+const TIMG1_WDTWPROTECT = TIMG1_BASE + 0x64;
+const WDT_UNLOCK = 0x50d83aa1;
+const WDT_EN = 0x80000000;
+
 const RFDO_0 = 0xf1e000;
 const SCRATCH_ADDR = 3; // a3 holds the address, a4 the data, while reading memory
 const SCRATCH_DATA = 4;
@@ -129,49 +137,64 @@ export class XtensaOcd implements DebugTarget {
     this.irSelected = ir;
   }
 
-  private async dbg(reg: number, value: number): Promise<void> {
-    this.trace?.(`OCD write ${regName(reg)} = ${hex(value)}`);
+  /** Debug-register accesses (NARSEL address scan + data scan each) sent in a single USB round trip. */
+  private async nar(ops: { reg: number; write?: number }[]): Promise<number[]> {
     await this.select(IR_NARSEL);
-    await this.tap.shiftDR((reg << 1) | 1, 8);
-    await this.tap.shiftDR(value >>> 0, 32);
+    const scans = ops.flatMap((o) => [
+      { value: (o.reg << 1) | (o.write === undefined ? 0 : 1), length: 8 },
+      { value: (o.write ?? 0) >>> 0, length: 32 },
+    ]);
+    const out = await this.tap.shiftDRs(scans);
+    return ops.map((o, i) => {
+      const v = out[i * 2 + 1];
+      this.trace?.(o.write === undefined
+        ? `OCD read  ${regName(o.reg)} = ${hex(v)}${o.reg === NAR_DSR ? ` (${dsrFlags(v)})` : ""}`
+        : `OCD write ${regName(o.reg)} = ${hex(o.write)}`);
+      return v;
+    });
+  }
+
+  private async dbg(reg: number, value: number): Promise<void> {
+    await this.nar([{ reg, write: value }]);
   }
 
   private async dbgRead(reg: number): Promise<number> {
-    await this.select(IR_NARSEL);
-    await this.tap.shiftDR(reg << 1, 8);
-    const v = await this.tap.shiftDR(0, 32);
-    this.trace?.(`OCD read  ${regName(reg)} = ${hex(v)}${reg === NAR_DSR ? ` (${dsrFlags(v)})` : ""}`);
-    return v;
+    return (await this.nar([{ reg }]))[0];
   }
 
-  /** Run one instruction on the halted core and wait for it to finish. */
-  private async exec(insn: number): Promise<void> {
+  /**
+   * Run one instruction on the halted core and wait for it to finish. Optionally the
+   * DDR value to load first and a DDR read-back are part of the same USB transfer
+   * (the core finishes far sooner than the next scan arrives); DSR is polled again
+   * only if it still says busy.
+   */
+  private async exec(insn: number, ddr?: { write?: number; read?: boolean }): Promise<number> {
     this.trace?.(`OCD exec instruction ${hex(insn)}`);
-    await this.dbg(NAR_DIR0EXEC, insn);
-    let dsr = 0;
+    const ops: { reg: number; write?: number }[] = [];
+    if (ddr?.write !== undefined) ops.push({ reg: NAR_DDR, write: ddr.write });
+    ops.push({ reg: NAR_DIR0EXEC, write: insn }, { reg: NAR_DSR });
+    if (ddr?.read) ops.push({ reg: NAR_DDR });
+    const out = await this.nar(ops);
+    let dsr = out[ddr?.write !== undefined ? 2 : 1];
+    let value = ddr?.read ? out[out.length - 1] : 0;
     for (let i = 0; i < 100; i++) {
-      dsr = await this.dbgRead(NAR_DSR);
       if (dsr & (DSR_EXECEXCEPTION | DSR_EXECOVERRUN)) {
         await this.dbg(NAR_DSR, DSR_EXECEXCEPTION | DSR_EXECOVERRUN | DSR_EXECDONE);
         throw new Error(`The core raised an exception while the debugger ran instruction ${hex(insn)} (DSR ${hex(dsr)})`);
       }
-      // OpenOCD only waits for ExecBusy to clear; ExecDone is a bonus we don't insist on forever.
-      if (!(dsr & DSR_EXECBUSY) && (dsr & DSR_EXECDONE || i >= 5)) {
-        if (dsr & DSR_EXECDONE) await this.dbg(NAR_DSR, DSR_EXECDONE);
-        return;
-      }
+      // As in OpenOCD, only ExecBusy is waited for; ExecDone stays set and isn't needed.
+      if (!(dsr & DSR_EXECBUSY)) return value;
+      [dsr, value] = ddr?.read ? await this.nar([{ reg: NAR_DSR }, { reg: NAR_DDR }]) : [await this.dbgRead(NAR_DSR), 0];
     }
     throw new Error(`Timed out waiting for the core to execute instruction ${hex(insn)} (DSR ${hex(dsr)})`);
   }
 
   private async readAr(n: number): Promise<number> {
-    await this.exec(wsr(SR_DDR, n)); // DDR = an
-    return this.dbgRead(NAR_DDR);
+    return this.exec(wsr(SR_DDR, n), { read: true }); // DDR = an
   }
 
   private async writeAr(n: number, value: number): Promise<void> {
-    await this.dbg(NAR_DDR, value);
-    await this.exec(rsr(SR_DDR, n)); // an = DDR
+    await this.exec(rsr(SR_DDR, n), { write: value }); // an = DDR
   }
 
   private async readSr(sr: number): Promise<number> {
@@ -200,10 +223,66 @@ export class XtensaOcd implements DebugTarget {
     await this.writeAr(SCRATCH_DATA, a4);
   }
 
+  // ---- the interrupt watchdog ----
+  //
+  // The core's halted, but the watchdog timers keep counting; a pause of ~300 ms would
+  // reset the chip ("Interrupt wdt timeout"). So while halted we switch TIMG1's watchdog
+  // (the one the interrupt watchdog uses) off, and put it back, fed, before resuming.
+
+  private wdtHandled = false;
+  private wdtSaved?: number;
+
+  private async rawRead32(addr: number): Promise<number> {
+    await this.writeAr(SCRATCH_ADDR, addr);
+    await this.exec(l32i(SCRATCH_DATA, SCRATCH_ADDR, 0));
+    return this.readAr(SCRATCH_DATA);
+  }
+
+  private async rawWrite32(addr: number, value: number): Promise<void> {
+    await this.writeAr(SCRATCH_ADDR, addr);
+    await this.writeAr(SCRATCH_DATA, value);
+    await this.exec(s32i(SCRATCH_DATA, SCRATCH_ADDR, 0));
+  }
+
+  private async wdtSuspend(): Promise<void> {
+    if (this.wdtHandled) return;
+    this.wdtHandled = true;
+    try {
+      await this.writeArScratchSave();
+      const cfg = await this.rawRead32(TIMG1_WDTCONFIG0);
+      this.trace?.(`OCD TIMG1 WDTCONFIG0 = ${hex(cfg)}`);
+      if (!(cfg & WDT_EN)) return;
+      await this.rawWrite32(TIMG1_WDTWPROTECT, WDT_UNLOCK);
+      await this.rawWrite32(TIMG1_WDTCONFIG0, cfg & ~WDT_EN);
+      await this.rawWrite32(TIMG1_WDTWPROTECT, 0);
+      this.wdtSaved = cfg;
+    } catch (e) {
+      this.trace?.(`OCD couldn't suspend the watchdog: ${(e as Error).message}`);
+    }
+  }
+
+  private async wdtRestore(): Promise<void> {
+    const cfg = this.wdtSaved;
+    this.wdtSaved = undefined;
+    this.wdtHandled = false;
+    if (cfg === undefined) return;
+    try {
+      await this.writeArScratchSave();
+      await this.rawWrite32(TIMG1_WDTWPROTECT, WDT_UNLOCK);
+      await this.rawWrite32(TIMG1_WDTFEED, 1);
+      await this.rawWrite32(TIMG1_WDTCONFIG0, cfg);
+      await this.rawWrite32(TIMG1_WDTWPROTECT, 0);
+    } catch (e) {
+      this.trace?.(`OCD couldn't restore the watchdog: ${(e as Error).message}`);
+    }
+  }
+
   // ---- DebugTarget ----
 
   async isHalted(): Promise<boolean> {
-    return !!((await this.dbgRead(NAR_DSR)) & DSR_STOPPED);
+    const stopped = !!((await this.dbgRead(NAR_DSR)) & DSR_STOPPED);
+    if (stopped) await this.wdtSuspend(); // also when it stopped by itself (a breakpoint)
+    return stopped;
   }
 
   async halt(): Promise<void> {
@@ -252,12 +331,13 @@ export class XtensaOcd implements DebugTarget {
     await this.applyBreakpoints();
     await this.writeSr(SR_ICOUNTLEVEL, DEBUG_LEVEL);
     await this.writeSr(SR_ICOUNT, 0xfffffffe); // halts after one instruction
-    await this.leaveDebug();
+    await this.leaveDebug(false); // it halts again at once: keep the watchdog suspended
     if (await this.waitHalted()) return;
     throw new Error("The core didn't stop after a step");
   }
 
-  private async leaveDebug(): Promise<void> {
+  private async leaveDebug(restoreWdt = true): Promise<void> {
+    if (restoreWdt) await this.wdtRestore();
     await this.restoreScratch();
     await this.dbg(NAR_DCRCLR, DCR_DEBUGINTERRUPT);
     await this.dbg(NAR_DSR, 0xffffffff);
@@ -281,12 +361,11 @@ export class XtensaOcd implements DebugTarget {
     const start = addr & ~3;
     const words = Math.ceil((addr + length - start) / 4);
     await this.writeArScratchSave();
-    await this.writeAr(SCRATCH_ADDR, start);
     const out = new Uint8Array(words * 4);
     const dv = new DataView(out.buffer);
     for (let i = 0; i < words; i++) {
-      await this.exec(l32i(SCRATCH_DATA, SCRATCH_ADDR, 0));
-      await this.exec(addi4(SCRATCH_ADDR, SCRATCH_ADDR));
+      if (i % 128 === 0) await this.writeAr(SCRATCH_ADDR, start + i * 4); // l32i's offset is at most 255 words
+      await this.exec(l32i(SCRATCH_DATA, SCRATCH_ADDR, i % 128));
       dv.setUint32(i * 4, await this.readAr(SCRATCH_DATA), true);
     }
     return out.subarray(addr - start, addr - start + length);

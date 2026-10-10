@@ -122,7 +122,7 @@ export class JtagInspector {
     add("insn", "Step instruction", "Execute exactly one machine instruction", () => this.stepInstruction());
     this.live.type = "checkbox";
     const liveLabel = el("label", "check");
-    liveLabel.title = "Briefly pause the CPU (under 100 ms, at most every second) to refresh watched variables while the program runs; the interrupt watchdog panics the chip if it's halted longer";
+    liveLabel.title = "Briefly pause the CPU (under 100 ms, at most every second) to refresh watched variables while the program runs; pauses are kept short";
     liveLabel.append(this.live, " Live");
     this.live.onchange = () => void this.livePoll();
     this.verbose.type = "checkbox";
@@ -264,7 +264,7 @@ export class JtagInspector {
     this.polling = true;
     try {
       while (this.target && !this.halted) {
-        await sleep(250);
+        await sleep(100);
         const t = this.target;
         if (!t || this.halted) break;
         const stopped = await this.run(() => t.isHalted());

@@ -181,6 +181,35 @@ export class Tap {
     return out;
   }
 
+  /** Several data-register scans (each from and back to Run-Test/Idle) in one USB round trip. Returns what came out of each. */
+  async shiftDRs(scans: { value: number; length: number }[]): Promise<number[]> {
+    const tms: number[] = [], tdi: number[] = [], cap: boolean[] = [];
+    for (const { value, length } of scans) {
+      const bits = [
+        ...new Array(this.index).fill(0),
+        ...Array.from({ length }, (_, i) => (i < 32 ? (value >>> i) & 1 : 0)),
+        ...new Array(this.taps - 1 - this.index).fill(0),
+      ];
+      [1, 0, 0].forEach((t) => { tms.push(t); tdi.push(0); cap.push(false); });
+      bits.forEach((bit, i) => {
+        tms.push(i === bits.length - 1 ? 1 : 0);
+        tdi.push(bit);
+        cap.push(i >= this.index && i < this.index + length);
+      });
+      tms.push(1, 0); tdi.push(0, 0); cap.push(false, false);
+    }
+    const bits = await this.probe.clock(tms, tdi, cap);
+    let at = 0;
+    return scans.map(({ value, length }) => {
+      let out = 0;
+      for (let i = 0; i < Math.min(length, 32); i++) out |= bits[at + i] << i;
+      at += length;
+      out >>>= 0;
+      this.trace?.(`TAP DR${length} <- 0x${(value >>> 0).toString(16)}  -> 0x${out.toString(16)}`);
+      return out;
+    });
+  }
+
   private async scanBits(prefix: number[], data: number[], captureFrom: number, captureLength: number): Promise<number> {
     const tms = [...prefix], tdi = prefix.map(() => 0), cap = prefix.map(() => false);
     data.forEach((bit, i) => {
