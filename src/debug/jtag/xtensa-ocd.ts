@@ -10,16 +10,23 @@
 import { Tap, UsbJtag } from "./usb-jtag";
 import type { DebugTarget, Registers } from "./target";
 
-const IR_NAR = 0x1c;
-const IR_NDR = 0x1d;
+// One TAP instruction, NARSEL, serves both steps: an 8-bit scan selects the register (address << 1 | write),
+// then a 32-bit scan reads or writes it (OpenOCD's xtensa_debug_module.c).
+const IR_NARSEL = 0x1c;
+const IR_PWRCTL = 0x08;
+// PWRCTL bits (8-bit register, own TAP instruction).
+const PWRCTL_COREWAKEUP = 1 << 0;
+const PWRCTL_MEMWAKEUP = 1 << 1;
+const PWRCTL_DEBUGWAKEUP = 1 << 2;
+const PWRCTL_JTAGDEBUGUSE = 1 << 7;
 const IR_LENGTH = 5;
 
 // NAR addresses of the debug registers.
-const NAR_DCRSET = 0x41;
 const NAR_DCRCLR = 0x42;
-const NAR_DSR = 0x43;
-const NAR_DDR = 0x44;
-const NAR_DIR0EXEC = 0x46;
+const NAR_DCRSET = 0x43;
+const NAR_DSR = 0x44;
+const NAR_DDR = 0x45;
+const NAR_DIR0EXEC = 0x47;
 
 const DCR_ENABLEOCD = 1 << 0;
 const DCR_DEBUGINTERRUPT = 1 << 1;
@@ -74,7 +81,18 @@ export class XtensaOcd implements DebugTarget {
     this.idcode = ids[0];
     this.tapCount = ids.length;
     this.tap.configure(ids.length, 0);
+    // Power up the debug module and tell it JTAG is in use; the debug registers don't work before this.
+    const wake = PWRCTL_COREWAKEUP | PWRCTL_MEMWAKEUP | PWRCTL_DEBUGWAKEUP;
+    await this.select(IR_PWRCTL);
+    await this.tap.shiftDR(wake, 8);
+    await this.tap.shiftDR(wake | PWRCTL_JTAGDEBUGUSE, 8);
+    this.irSelected = IR_PWRCTL;
     await this.dbg(NAR_DCRSET, DCR_ENABLEOCD);
+    const id = await this.dbgRead(0x40); // OCDID
+    if (id === 0 || id === 0xffffffff) {
+      await this.probe.disconnect();
+      throw new Error(`The debug module didn't answer (OCDID ${hex(id)}).`);
+    }
   }
 
   async disconnect(): Promise<void> {
@@ -96,16 +114,14 @@ export class XtensaOcd implements DebugTarget {
   }
 
   private async dbg(reg: number, value: number): Promise<void> {
-    await this.select(IR_NAR);
+    await this.select(IR_NARSEL);
     await this.tap.shiftDR((reg << 1) | 1, 8);
-    await this.select(IR_NDR);
     await this.tap.shiftDR(value >>> 0, 32);
   }
 
   private async dbgRead(reg: number): Promise<number> {
-    await this.select(IR_NAR);
+    await this.select(IR_NARSEL);
     await this.tap.shiftDR(reg << 1, 8);
-    await this.select(IR_NDR);
     return this.tap.shiftDR(0, 32);
   }
 
