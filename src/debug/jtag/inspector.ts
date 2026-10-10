@@ -8,18 +8,35 @@ import {
   type DataSymbol, type LineTable, type SourceLocation,
   dataSymbols, functionAt, locateExact,
 } from "../line-table";
+import type { VarInfo } from "../dwarf-info";
+import { formatTyped, typeName, typeSize } from "./format";
 import type { DebugTarget, Registers } from "./target";
 
 type Format = "dec" | "hex" | "float";
 
 interface Watch {
+  /** Identity: "g:<address>" for globals, "l:<function>:<name>:<scope>" for locals. */
+  key: string;
   sym: DataSymbol;
+  /** DWARF type, for readable structs and arrays. */
+  type?: number;
+  /** Set for locals and parameters; sym.addr is recomputed from the stack frame at every read. */
+  local?: VarInfo;
+  /** A local that isn't in a live stack frame right now (the last value stays shown, dimmed). */
+  stale?: boolean;
   format: Format;
   /** Last values, oldest first (at most HISTORY). */
   history: number[];
   bytes?: Uint8Array;
   changed: boolean;
   auto: boolean;
+}
+
+/** A stack frame: where it is executing and its frame base (CFA), when its function has debug info. */
+interface Frame {
+  /** Address to look up in the line table (a return address minus one for callers). */
+  at: number;
+  cfa?: number;
 }
 
 interface TimelineEntry {
@@ -45,6 +62,8 @@ const LIVE_BUDGET_MS = 100;
 const LIVE_MIN_GAP_MS = 1000;
 const LIVE_DUTY = 20;
 const MAX_AUTO = 16;
+const MAX_FRAMES = 8;
+const MAX_TYPED_BYTES = 128;
 const STACK_WORDS = 48;
 const MAX_STEPS = 4000;
 const TABS = ["Variables", "Memory", "Stack", "Registers", "Timeline"] as const;
@@ -88,6 +107,11 @@ export class JtagInspector {
   private watches: Watch[] = [];
   private halted = false;
   private regs?: Registers;
+  private frames?: Frame[];
+  private spans = new Map<number, { file: string; first: number; last: number } | undefined>();
+  private dismissed = new Set<string>();
+  private globalTypes = new Map<number, number>();
+  private frameSizes = new Map<number, number>();
   private stack?: { base: number; words: number[]; prev?: number[] };
   private memory = { addr: 0x3fc88000, length: 128, bytes: undefined as Uint8Array | undefined, prev: undefined as Uint8Array | undefined };
   private timeline: TimelineEntry[] = [];
@@ -151,6 +175,7 @@ export class JtagInspector {
         bar.removeEventListener("pointerup", up);
         area.removeAttribute("data-dock-preview");
         area.dataset.dock = dockAt(ev);
+        host.editor.layout();
       };
       bar.addEventListener("pointermove", move);
       bar.addEventListener("pointerup", up);
@@ -165,7 +190,30 @@ export class JtagInspector {
       this.tabButtons.set(t, b);
       tabs.append(b);
     }
-    root.append(bar, tabs, this.body);
+    const resizer = el("div", "jt-resizer");
+    resizer.title = "Drag to resize the panel";
+    resizer.onpointerdown = (e) => {
+      if (e.button !== 0) return;
+      e.preventDefault();
+      resizer.setPointerCapture(e.pointerId);
+      const area = root.parentElement!;
+      const dock = area.dataset.dock ?? "bottom";
+      const rect = area.getBoundingClientRect();
+      const move = (ev: PointerEvent) => {
+        if (dock === "bottom") root.style.setProperty("--jt-h", `${Math.round(Math.min(Math.max(rect.bottom - ev.clientY, 120), rect.height - 120))}px`);
+        else root.style.setProperty("--jt-w", `${Math.round(Math.min(Math.max(dock === "right" ? rect.right - ev.clientX : ev.clientX - rect.left, 240), rect.width - 240))}px`);
+        area.style.setProperty("--jt-w", root.style.getPropertyValue("--jt-w"));
+        host.editor.layout();
+      };
+      const up = () => {
+        resizer.removeEventListener("pointermove", move);
+        resizer.removeEventListener("pointerup", up);
+        host.editor.layout();
+      };
+      resizer.addEventListener("pointermove", move);
+      resizer.addEventListener("pointerup", up);
+    };
+    root.append(resizer, bar, tabs, this.body);
     this.render();
 
     for (const language of ["c", "cpp"]) {
@@ -182,6 +230,10 @@ export class JtagInspector {
   attach(table: LineTable | undefined): void {
     this.table = table;
     this.symbols = table ? dataSymbols(table) : [];
+    this.globalTypes = new Map((table?.info?.vars ?? []).filter((v) => v.addr !== undefined && v.type >= 0).map((v) => [v.addr!, v.type]));
+    this.frames = undefined;
+    this.dismissed.clear();
+    this.spans.clear();
     this.watches = [];
     this.timeline = [];
     this.memory.bytes = this.memory.prev = undefined;
@@ -319,6 +371,7 @@ export class JtagInspector {
           await this.run(async () => {
             const start = performance.now();
             await t.halt();
+            this.frames = undefined;
             const budgetEnd = start + LIVE_BUDGET_MS;
             for (let n = 0; n < this.watches.length && (n === 0 || performance.now() < budgetEnd); n++) {
               const w = this.watches[(next + n) % this.watches.length];
@@ -412,12 +465,14 @@ export class JtagInspector {
   /** Read everything the panels show; the CPU must be halted. */
   private async read(): Promise<void> {
     const t = this.target!;
+    this.frames = undefined;
     this.regs = await t.readRegisters();
     const sp = this.regs.ar[1];
     const raw = await t.readMemory(sp, STACK_WORDS * 4);
     const dv = new DataView(raw.buffer, raw.byteOffset, raw.byteLength);
     const words = Array.from({ length: STACK_WORDS }, (_, i) => dv.getUint32(i * 4, true));
     this.stack = { base: sp, words, prev: this.stack?.base === sp ? this.stack.words : undefined };
+    await this.discoverLocals(t);
     for (const w of this.watches) await this.readWatch(t, w);
     if (this.tab === "Memory" || this.memory.bytes) {
       this.memory.prev = this.memory.bytes;
@@ -427,12 +482,85 @@ export class JtagInspector {
   }
 
   private async readWatch(t: DebugTarget, w: Watch): Promise<void> {
-    const bytes = await t.readMemory(w.sym.addr, Math.min(w.sym.size, 64));
+    if (w.local && w.local.addr === undefined) {
+      const frame = (await this.ensureFrames(t)).find((f) => f.cfa !== undefined && f.at >= w.local!.lo && f.at < w.local!.hi);
+      if (!frame) {
+        w.stale = true;
+        w.changed = false;
+        return;
+      }
+      w.stale = false;
+      w.sym.addr = (frame.cfa! + w.local.fbreg!) >>> 0;
+    }
+    const bytes = await t.readMemory(w.sym.addr, Math.min(w.sym.size, w.type !== undefined ? MAX_TYPED_BYTES : 64));
     const before = w.bytes;
     w.changed = !!before && before.some((x, i) => x !== bytes[i]);
     w.bytes = bytes;
     if (w.sym.size <= 8) w.history = [...w.history, toNumber(bytes, true)].slice(-HISTORY);
-    if (w.changed && before) this.note(`${w.sym.name}: ${formatValue({ ...w, bytes: before })} → ${formatValue(w)}`);
+    if (w.changed && before) this.note(`${w.sym.name}: ${this.fmt({ ...w, bytes: before })} → ${this.fmt(w)}`);
+  }
+
+  /** A watch's value for display: typed (structs, arrays, enums) when the type is known. */
+  private fmt(w: Watch): string {
+    const info = this.table?.info;
+    if (!w.bytes) return w.local && w.local.fbreg === undefined && w.local.addr === undefined ? "(optimized out)" : w.local ? "(not in scope)" : "—";
+    if (info && w.type !== undefined && w.type >= 0 && w.format !== "hex") return formatTyped(info, w.type, w.bytes);
+    return formatValue(w);
+  }
+
+  /** Bytes the compiler reserved for the frame, read from the function's first instruction. */
+  private async frameSize(t: DebugTarget, start: number): Promise<number> {
+    let size = this.frameSizes.get(start);
+    if (size === undefined) {
+      const b = await t.readMemory(start, 3);
+      if (b[0] === 0x36) size = ((b[2] << 4) | (b[1] >> 4)) * 8; // entry a1, N
+      else if (b[0] === 0x12 && b[1] === 0xc1) size = Math.max(0, -((b[2] << 24) >> 24)); // addi a1, a1, -N (call0 ABI)
+      else size = 0;
+      this.frameSizes.set(start, size);
+    }
+    return size;
+  }
+
+  private async ensureFrames(t: DebugTarget): Promise<Frame[]> {
+    if (this.frames) return this.frames;
+    const raw = await t.readFrames(MAX_FRAMES);
+    const frames: Frame[] = [];
+    for (const [i, f] of raw.entries()) {
+      const at = i ? f.pc - 1 : f.pc;
+      const fn = this.table && functionAt(this.table, at);
+      let cfa: number | undefined;
+      if (fn) cfa = f.sp + (i === 0 && f.pc === fn.start ? 0 : await this.frameSize(t, fn.start));
+      frames.push({ at, cfa });
+    }
+    return (this.frames = frames);
+  }
+
+  /** Add the locals and parameters of the user functions on the stack. */
+  private async discoverLocals(t: DebugTarget): Promise<void> {
+    const info = this.table?.info;
+    if (!info) return;
+    const frames = await this.ensureFrames(t);
+    for (const f of frames) {
+      if (f.cfa === undefined) continue;
+      for (const v of info.vars) {
+        if (v.fbreg !== undefined && v.type >= 0 && f.at >= v.lo && f.at < v.hi) this.addLocal(v, true);
+      }
+    }
+  }
+
+  private localKey(v: VarInfo): string {
+    return `l:${v.func}:${v.name}:${v.lo.toString(16)}`;
+  }
+
+  private addLocal(v: VarInfo, auto = false): void {
+    const key = this.localKey(v);
+    if (this.watches.some((w) => w.key === key) || (auto && this.dismissed.has(key))) return;
+    if (auto && this.watches.filter((w) => w.auto).length >= MAX_AUTO * 2) return;
+    const size = this.table?.info && v.type >= 0 ? typeSize(this.table.info, v.type) : 0;
+    this.watches.push({
+      key, sym: { name: v.name, addr: v.addr ?? 0, size: size || 4 }, type: v.type, local: v,
+      format: "dec", history: [], changed: false, auto,
+    });
   }
 
   private note(text: string): void {
@@ -470,13 +598,14 @@ export class JtagInspector {
   }
 
   private addWatch(sym: DataSymbol, auto = false): void {
-    if (this.watches.some((w) => w.sym.addr === sym.addr)) return;
-    this.watches.push({ sym, format: "dec", history: [], changed: false, auto });
+    const key = `g:${sym.addr}`;
+    if (this.watches.some((w) => w.key === key)) return;
+    this.watches.push({ key, type: this.globalTypes.get(sym.addr), sym, format: "dec", history: [], changed: false, auto });
   }
 
   private async writeWatch(w: Watch, text: string): Promise<void> {
     const value = w.format === "float" ? Number(text) : Number(text.trim());
-    if (!Number.isFinite(value) || w.sym.size > 8) throw new Error(`Can't write "${text}" to ${w.sym.name}`);
+    if (w.stale || !Number.isFinite(value) || w.sym.size > 8) throw new Error(`Can't write "${text}" to ${w.sym.name}`);
     const bytes = new Uint8Array(w.sym.size);
     const dv = new DataView(bytes.buffer);
     if (w.format === "float" && w.sym.size === 4) dv.setFloat32(0, value, true);
@@ -519,26 +648,63 @@ export class JtagInspector {
     this.execDecoration = undefined;
   }
 
-  /** Values next to the code that uses them, so the program reads as its own state. */
+  /** The source lines a function spans, from the line table. */
+  private lineSpan(funcLo: number): { file: string; first: number; last: number } | undefined {
+    if (!this.spans.has(funcLo)) this.spans.set(funcLo, this.computeLineSpan(funcLo));
+    return this.spans.get(funcLo);
+  }
+
+  private computeLineSpan(funcLo: number): { file: string; first: number; last: number } | undefined {
+    const t = this.table;
+    const fn = t && functionAt(t, funcLo);
+    if (!t || !fn) return undefined;
+    let first = Infinity, last = 0, file = "";
+    for (let i = 0; i + 2 < t.rows.length; i += 3) {
+      const [addr, line, f] = [t.rows[i], t.rows[i + 1], t.rows[i + 2]];
+      if (addr < fn.start || addr >= fn.end || line <= 0 || f < 0) continue;
+      file = t.files[f];
+      first = Math.min(first, line);
+      last = Math.max(last, line);
+    }
+    return last ? { file, first, last } : undefined;
+  }
+
+  /** The watch a name refers to on this line of this file: a local of the enclosing function, else a global. */
+  private watchFor(name: string, file: string, line: number): Watch | undefined {
+    let global: Watch | undefined;
+    for (const w of this.watches) {
+      if (w.sym.name !== name) continue;
+      if (!w.local) global = w;
+      else if (w.local.funcLo !== undefined) {
+        const span = this.lineSpan(w.local.funcLo);
+        if (span && span.file === file && line >= span.first && line <= span.last) return w;
+      }
+    }
+    return global;
+  }
+
+  /** Values next to the code that uses them (like Quokka), so the program reads as its own state. */
   private renderInline(): void {
     for (const [model, ids] of this.inlineDecorations) if (!model.isDisposed()) model.deltaDecorations(ids, []);
     this.inlineDecorations.clear();
     if (!this.target) return;
-    const byName = new Map(this.watches.filter((w) => w.bytes).map((w) => [w.sym.name, w]));
-    for (const { model } of this.host.sources()) {
+    const names = new Set(this.watches.map((w) => w.sym.name));
+    for (const { file, model } of this.host.sources()) {
       const decorations: monaco.editor.IModelDeltaDecoration[] = [];
       for (let line = 1; line <= model.getLineCount(); line++) {
         const seen = new Map<string, Watch>();
         for (const m of model.getLineContent(line).matchAll(/[A-Za-z_]\w*/g)) {
-          const w = byName.get(m[0]);
-          if (w) seen.set(m[0], w);
+          if (!names.has(m[0])) continue;
+          const w = this.watchFor(m[0], file, line);
+          if (w?.bytes) seen.set(m[0], w);
         }
         if (!seen.size) continue;
-        const text = [...seen].map(([name, w]) => `${name} = ${formatValue(w)}`).join(", ");
-        const changed = [...seen.values()].some((w) => w.changed);
+        const text = [...seen].map(([name, w]) => `${name} = ${this.fmt(w)}`).join(", ");
+        const ws = [...seen.values()];
+        const cls = ws.some((w) => w.changed) ? "jt-inline changed" : ws.every((w) => w.stale) ? "jt-inline stale" : "jt-inline";
         decorations.push({
           range: new monaco.Range(line, model.getLineMaxColumn(line), line, model.getLineMaxColumn(line)),
-          options: { after: { content: `  ${text}`, inlineClassName: changed ? "jt-inline changed" : "jt-inline" } },
+          options: { after: { content: `  ${text}`, inlineClassName: cls } },
         });
       }
       this.inlineDecorations.set(model, model.deltaDecorations([], decorations));
@@ -547,13 +713,18 @@ export class JtagInspector {
 
   private hover(model: monaco.editor.ITextModel, pos: monaco.Position): monaco.languages.Hover | undefined {
     const word = model.getWordAtPosition(pos);
-    const sym = word && this.symbols.find((s) => s.name === word.word);
-    if (!word || !sym) return undefined;
-    const w = this.watches.find((x) => x.sym.addr === sym.addr);
-    const value = w?.bytes ? `\`${formatValue(w)}\`` : this.target ? "_pause to read_" : "_connect JTAG to read_";
+    if (!word) return undefined;
+    const file = this.host.sources().find((s) => s.model === model)?.file ?? "";
+    const w = this.watchFor(word.word, file, pos.lineNumber);
+    const sym = w?.sym ?? this.symbols.find((s) => s.name === word.word);
+    if (!sym) return undefined;
+    const info = this.table?.info;
+    const type = w?.type !== undefined && info ? typeName(info, w.type) : "";
+    const value = w?.bytes ? `\`${this.fmt(w)}\`${w.stale ? " _(last value, not in a live frame)_" : ""}` : this.target ? "_pause to read_" : "_connect JTAG to read_";
+    const where = w?.local && w.local.addr === undefined ? "local" : `\`0x${hex(sym.addr)}\``;
     return {
       range: new monaco.Range(pos.lineNumber, word.startColumn, pos.lineNumber, word.endColumn),
-      contents: [{ value: `**${sym.name}** = ${value}\n\n\`0x${hex(sym.addr)}\` · ${sym.size} byte${sym.size === 1 ? "" : "s"}` }],
+      contents: [{ value: `**${sym.name}** = ${value}\n\n${type ? `\`${type}\` · ` : ""}${where} · ${sym.size} byte${sym.size === 1 ? "" : "s"}` }],
     };
   }
 
@@ -581,11 +752,17 @@ export class JtagInspector {
     const results = el("div", "jt-results");
     search.oninput = () => {
       const q = search.value.trim().toLowerCase();
-      results.replaceChildren(...(q ? this.symbols.filter((s) => s.name.toLowerCase().includes(q)).slice(0, 30) : []).map((s) => {
-        const row = el("button", "jt-result", `${s.name}  0x${hex(s.addr)}  ${s.size}B`);
+      const locals = (q ? (this.table?.info?.vars ?? []).filter((v) => v.func && v.fbreg !== undefined && v.type >= 0 && v.name.toLowerCase().includes(q)) : []).slice(0, 15);
+      const globals = (q ? this.symbols.filter((s) => s.name.toLowerCase().includes(q)).slice(0, 30) : []);
+      const entries: { label: string; add: () => void }[] = [
+        ...locals.map((v) => ({ label: `${v.name}  local in ${v.func}()`, add: () => this.addLocal(v) })),
+        ...globals.map((s) => ({ label: `${s.name}  0x${hex(s.addr)}  ${s.size}B`, add: () => this.addWatch(s) })),
+      ];
+      results.replaceChildren(...entries.map((e) => {
+        const row = el("button", "jt-result", e.label);
         row.title = "Watch this variable";
         row.onclick = () => {
-          this.addWatch(s);
+          e.add();
           if (this.halted) void this.snapshot();
           else this.render();
         };
@@ -595,8 +772,8 @@ export class JtagInspector {
     const table = el("table", "jt-table");
     table.append(this.row(["Variable", "Address", "Value", "History", ""], "th"));
     for (const w of this.watches) {
-      const value = el("td", w.changed ? "jt-value changed" : "jt-value", formatValue(w));
-      value.title = "Click to change the value on the chip";
+      const value = el("td", w.changed ? "jt-value changed" : w.stale ? "jt-value stale" : "jt-value", this.fmt(w));
+      value.title = w.stale ? "Last value; the function isn't on the stack at this stop" : "Click to change the value on the chip";
       value.onclick = () => {
         const text = prompt(`New value for ${w.sym.name}`, w.bytes && w.sym.size <= 8 ? String(toNumber(w.bytes, true)) : "");
         if (text !== null && this.target && this.halted) void this.writeWatch(w, text).catch((e) => this.fail(e));
@@ -611,13 +788,15 @@ export class JtagInspector {
       const remove = el("button", "small", "×");
       remove.onclick = () => {
         this.watches = this.watches.filter((x) => x !== w);
+        this.dismissed.add(w.key);
         this.render();
         this.renderInline();
       };
       const tr = el("tr");
-      const name = el("td", "", w.sym.name);
-      name.title = `${w.sym.size} bytes`;
-      const mem = el("td", "jt-link", "0x" + hex(w.sym.addr));
+      const info = this.table?.info;
+      const name = el("td", "", w.local?.func ? `${w.local.func}()  ${w.sym.name}` : w.sym.name);
+      name.title = `${info && w.type !== undefined ? typeName(info, w.type) + " · " : ""}${w.sym.size} bytes`;
+      const mem = el("td", "jt-link", w.sym.addr ? "0x" + hex(w.sym.addr) : "local");
       mem.title = "Show in Memory";
       mem.onclick = () => this.openMemory(w.sym.addr, w.sym.size);
       const fmtCell = el("td");

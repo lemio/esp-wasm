@@ -19,6 +19,11 @@ export interface DebugTarget {
   readRegisters(): Promise<Registers>;
   /** Just the program counter (cheaper than readRegisters, for stepping). */
   readPc(): Promise<number>;
+  /**
+   * The stack frames from the innermost outwards: the PC each is executing (for callers, the return
+   * address) and its stack pointer. The CPU must be halted.
+   */
+  readFrames(max: number): Promise<{ pc: number; sp: number }[]>;
   readMemory(addr: number, length: number): Promise<Uint8Array>;
   writeMemory(addr: number, data: Uint8Array): Promise<void>;
   /** Hardware breakpoints (the S3 has two per core); applied on the next resume or step. */

@@ -4,6 +4,7 @@
  * user's sources carry debug info (the sysroot libraries are stripped).
  */
 import type { ElfSection } from "../image/elf";
+import { type DebugInfo, parseDebugInfo } from "./dwarf-info";
 
 export interface SourceLocation {
   file: string; // as compiled, e.g. "/src/sketch.ino"
@@ -21,6 +22,8 @@ export interface LineTable {
   names: string[];
   /** Data symbols (globals, statics): address, size, name index (into names). Used by the JTAG inspector. */
   objects: number[];
+  /** Variables and types (.debug_info), for showing locals and structs. */
+  info?: DebugInfo;
 }
 
 class Reader {
@@ -180,6 +183,11 @@ export function buildLineTable(sections: ElfSection[], bytes: Uint8Array, isUser
   }
   const covered = (a: number) => lookupRow(table, a) >= 0;
   parseSymbols(sections, bytes, table, covered);
+  try {
+    table.info = parseDebugInfo(sections, bytes);
+  } catch {
+    // Unsupported DWARF: the inspector still works with globals and raw bytes.
+  }
   return table;
 }
 

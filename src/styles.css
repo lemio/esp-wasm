@@ -130,13 +130,13 @@ button[aria-expanded="true"] { background: var(--border); }
 .console .warn { color: var(--warn); }
 
 /* Hardware inspector (src/debug/jtag/inspector.ts): a DevTools-style panel under the editor. */
-.jtag-panel { height: 260px; flex-shrink: 0; display: flex; flex-direction: column; min-height: 0;
+.jtag-panel { position: relative; height: var(--jt-h, 260px); flex-shrink: 0; display: flex; flex-direction: column; min-height: 0;
   background: var(--panel); border-top: 1px solid var(--border); }
 .jtag-panel[hidden] { display: none; }
 .jt-drag { cursor: grab; }
-.editor-area[data-dock="right"], .editor-area[data-dock="left"] { display: grid; grid-template-rows: auto auto 1fr; }
-.editor-area[data-dock="right"] { grid-template-columns: minmax(0, 1fr) 420px; }
-.editor-area[data-dock="left"] { grid-template-columns: 420px minmax(0, 1fr); }
+.editor-area[data-dock="right"], .editor-area[data-dock="left"] { display: grid; grid-template-rows: auto auto minmax(0, 1fr); }
+.editor-area[data-dock="right"] { grid-template-columns: minmax(0, 1fr) var(--jt-w, 420px); }
+.editor-area[data-dock="left"] { grid-template-columns: var(--jt-w, 420px) minmax(0, 1fr); }
 .editor-area[data-dock="right"] > *, .editor-area[data-dock="left"] > * { grid-column: 1; }
 .editor-area[data-dock="left"] > * { grid-column: 2; }
 .editor-area[data-dock="right"] > .jtag-panel, .editor-area[data-dock="left"] > .jtag-panel {
@@ -182,3 +182,14 @@ button[aria-expanded="true"] { background: var(--border); }
 /* Values drawn after the code that uses them (Monaco "after" decorations). */
 .jt-inline { color: #6a9955; font-style: italic; }
 .jt-inline.changed { color: #ffcc66; }
+
+.jt-resizer { position: absolute; z-index: 5; background: transparent; }
+.jt-resizer:hover { background: var(--accent); opacity: .5; }
+.editor-area:not([data-dock]) > .jtag-panel > .jt-resizer, .editor-area[data-dock="bottom"] > .jtag-panel > .jt-resizer {
+  left: 0; right: 0; top: -3px; height: 6px; cursor: row-resize; }
+.editor-area[data-dock="right"] > .jtag-panel > .jt-resizer { top: 0; bottom: 0; left: -3px; width: 6px; cursor: col-resize; }
+.editor-area[data-dock="left"] > .jtag-panel > .jt-resizer { top: 0; bottom: 0; right: -3px; width: 6px; cursor: col-resize; }
+.jt-inline.stale, .jt-value.stale { opacity: .55; }
+.editor-area[data-dock="right"] > .debug-bar, .editor-area[data-dock="left"] > .debug-bar { grid-row: 1; }
+.editor-area[data-dock="right"] > .tabs, .editor-area[data-dock="left"] > .tabs { grid-row: 2; }
+.editor-area[data-dock="right"] > .editor, .editor-area[data-dock="left"] > .editor { grid-row: 3; min-height: 0; }

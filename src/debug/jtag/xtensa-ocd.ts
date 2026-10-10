@@ -54,6 +54,11 @@ const TIMG1_WDTWPROTECT = TIMG1_BASE + 0x64;
 const WDT_UNLOCK = 0x50d83aa1;
 const WDT_EN = 0x80000000;
 
+const SR_WINDOWBASE = 72;
+const SR_WINDOWSTART = 73;
+/** ROTW n: rotate the register window by n * 4 registers (OpenOCD's XT_INS_ROTW). */
+const rotw = (n: number) => 0x408000 | ((n & 15) << 4);
+
 const RFDO_0 = 0xf1e000;
 const SCRATCH_ADDR = 3; // a3 holds the address, a4 the data, while reading memory
 const SCRATCH_DATA = 4;
@@ -355,6 +360,59 @@ export class XtensaOcd implements DebugTarget {
       ar.push(i === SCRATCH_ADDR ? this.saved!.a3 : i === SCRATCH_DATA ? this.saved!.a4 : await this.readAr(i));
     }
     return { pc: await this.readPc(), ar };
+  }
+
+  /**
+   * Walk the windowed-ABI call chain. A callee's a0 holds its return address with the number of
+   * windows the call rotated (CALL4/8/12) in the top two bits, so the caller's registers are one
+   * ROTW away while its window is live (its WindowStart bit is set); otherwise they were spilled
+   * to the base save area just below the callee's stack pointer. Windows are rotated back after.
+   */
+  async readFrames(max: number): Promise<{ pc: number; sp: number }[]> {
+    await this.writeArScratchSave();
+    const pc = await this.readPc();
+    const top = pc & 0xc0000000;
+    const frames = [{ pc, sp: await this.readAr(1) }];
+    let rotated = 0;
+    try {
+      const wb = await this.readSr(SR_WINDOWBASE);
+      const ws = await this.readSr(SR_WINDOWSTART);
+      let window = wb;
+      let live = true;
+      while (frames.length < max) {
+        const sp = frames[frames.length - 1].sp;
+        let ra: number, callerSp: number;
+        if (live) {
+          const a0 = await this.readAr(0);
+          const inc = a0 >>> 30;
+          if (!inc) break;
+          ra = ((a0 & 0x3fffffff) | top) >>> 0;
+          window = (window - inc + 16) & 15;
+          if ((ws >>> window) & 1) {
+            await this.exec(rotw(-inc));
+            rotated += inc;
+            callerSp = await this.readAr(1);
+            frames.push({ pc: ra, sp: callerSp });
+            continue;
+          }
+          live = false;
+          if (rotated) await this.exec(rotw(rotated)); // memory reads use a3/a4 of the original window
+          rotated = 0;
+        }
+        const save = await this.readMemory(sp - 16, 16);
+        const dv = new DataView(save.buffer, save.byteOffset, save.byteLength);
+        const word = dv.getUint32(0, true);
+        callerSp = dv.getUint32(4, true);
+        if (!word || !callerSp) break;
+        ra = ((word & 0x3fffffff) | top) >>> 0;
+        frames.push({ pc: ra, sp: callerSp });
+      }
+    } catch (e) {
+      this.trace?.(`OCD frame walk stopped: ${e instanceof Error ? e.message : e}`);
+    } finally {
+      if (rotated) await this.exec(rotw(rotated));
+    }
+    return frames;
   }
 
   async readMemory(addr: number, length: number): Promise<Uint8Array> {
