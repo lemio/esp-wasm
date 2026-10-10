@@ -133,6 +133,17 @@ button[aria-expanded="true"] { background: var(--border); }
 .jtag-panel { height: 260px; flex-shrink: 0; display: flex; flex-direction: column; min-height: 0;
   background: var(--panel); border-top: 1px solid var(--border); }
 .jtag-panel[hidden] { display: none; }
+.jt-drag { cursor: grab; }
+.editor-area[data-dock="right"], .editor-area[data-dock="left"] { display: grid; grid-template-rows: auto auto 1fr; }
+.editor-area[data-dock="right"] { grid-template-columns: minmax(0, 1fr) 420px; }
+.editor-area[data-dock="left"] { grid-template-columns: 420px minmax(0, 1fr); }
+.editor-area[data-dock="right"] > *, .editor-area[data-dock="left"] > * { grid-column: 1; }
+.editor-area[data-dock="left"] > * { grid-column: 2; }
+.editor-area[data-dock="right"] > .jtag-panel, .editor-area[data-dock="left"] > .jtag-panel {
+  grid-row: 1 / span 3; height: auto; border-top: 0; }
+.editor-area[data-dock="right"] > .jtag-panel { grid-column: 2; border-left: 1px solid var(--border); }
+.editor-area[data-dock="left"] > .jtag-panel { grid-column: 1; border-right: 1px solid var(--border); }
+.editor-area[data-dock-preview] { outline: 2px dashed var(--accent); outline-offset: -2px; }
 .jt-bar { display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-bottom: 1px solid var(--border); }
 .jt-status { margin-left: auto; color: #e2c08d; font: 12px ui-monospace, SFMono-Regular, Menlo, monospace;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
