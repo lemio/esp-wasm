@@ -10,6 +10,9 @@ import { Flasher, isWebSerialSupported } from "./flasher/flasher";
 import { SerialMonitor } from "./flasher/monitor";
 import type { LineTable } from "./debug/line-table";
 import { Debugger, TraceFilter } from "./debug/trace-view";
+import { JtagInspector } from "./debug/jtag/inspector";
+import { XtensaOcd } from "./debug/jtag/xtensa-ocd";
+import { isWebUsbSupported } from "./debug/jtag/usb-jtag";
 import { Console } from "./ui/console";
 import { type Example, ExamplesPanel } from "./ui/examples";
 import { libraryFiles, listLibraries, removeLibrary } from "./libraries/store";
@@ -193,6 +196,29 @@ const debug = new Debugger(
     }
   },
 );
+// Hardware inspector: debugging over the chip's USB-JTAG, drawn into the editor.
+const inspector = new JtagInspector(
+  $("jtag-panel"),
+  {
+    editor,
+    sources: () => projectFiles().map((f) => ({ file: `/src/${f.path}`, model: f.model })),
+    showFile: (file) => {
+      const f = projectFiles().find((p) => `/src/${p.path}` === file);
+      if (f && editor.getModel() !== f.model) show(f);
+    },
+    breakpoints: (table) => debug.breakpointAddresses(table),
+    log: (text, level) => out.log(text, level),
+  },
+  () => new XtensaOcd(),
+);
+debug.onBreakpointsChanged = () => inspector.breakpointsChanged();
+const btnJtag = $<HTMLButtonElement>("btn-jtag");
+btnJtag.disabled = !isWebUsbSupported();
+btnJtag.onclick = () => {
+  const panel = $("jtag-panel");
+  if (panel.hidden) inspector.show();
+  else panel.hidden = true;
+};
 const traceFilter = new TraceFilter((key, value) => debug.marker(key, value));
 const run = (action: () => Promise<void>) => () => void action().catch((e) => out.log(`Debugger: ${(e as Error).message}`, "error"));
 dbgPause.onclick = run(() => (debug.state === "stopped" ? debug.continue() : debug.pause()));
@@ -280,6 +306,7 @@ async function build(retry?: () => void): Promise<FlashPart[] | undefined> {
       { defines, trace, libraries },
     );
     builtLineTable = result.lineTable;
+    inspector.attach(result.lineTable);
     for (const f of files) setDiagnostics(f.model, result.diagnostics, f.path);
     const app = result.parts.find((p) => p.name === "app.bin")!;
     out.log(`Build OK in ${(result.durationMs / 1000).toFixed(1)}s, app.bin ${app.data.length} bytes${trace ? " (with line tracing)" : ""}`, "ok");

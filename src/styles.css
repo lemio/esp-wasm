@@ -128,3 +128,46 @@ button[aria-expanded="true"] { background: var(--border); }
 .console .ok { color: var(--ok); }
 .console .muted { color: var(--muted); }
 .console .warn { color: var(--warn); }
+
+/* Hardware inspector (src/debug/jtag/inspector.ts): a DevTools-style panel under the editor. */
+.jtag-panel { height: 260px; flex-shrink: 0; display: flex; flex-direction: column; min-height: 0;
+  background: var(--panel); border-top: 1px solid var(--border); }
+.jtag-panel[hidden] { display: none; }
+.jt-bar { display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-bottom: 1px solid var(--border); }
+.jt-status { margin-left: auto; color: #e2c08d; font: 12px ui-monospace, SFMono-Regular, Menlo, monospace;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jt-tabs { display: flex; border-bottom: 1px solid var(--border); }
+.jt-tab { background: transparent; color: var(--muted); border-radius: 0; padding: 4px 12px; font-size: 12px; }
+.jt-tab.active { color: var(--text); box-shadow: inset 0 -2px 0 var(--accent); }
+.jt-body { flex: 1; overflow: auto; padding: 6px 8px; font: 12px/1.5 ui-monospace, SFMono-Regular, Menlo, monospace; }
+.jt-empty { color: var(--muted); margin: 6px 0; }
+.jt-input { background: var(--bg); color: var(--text); border: 1px solid var(--border); border-radius: 3px;
+  padding: 3px 6px; font: inherit; min-width: 260px; }
+.jt-results { display: flex; flex-direction: column; max-height: 90px; overflow: auto; }
+.jt-result { background: transparent; text-align: left; border-radius: 0; padding: 1px 6px; font: inherit; color: var(--text); }
+.jt-result:hover { background: var(--border); }
+.jt-table { border-collapse: collapse; width: 100%; margin-top: 6px; }
+.jt-table th { text-align: left; color: var(--muted); font-weight: normal; }
+.jt-table td, .jt-table th { padding: 1px 10px 1px 0; white-space: nowrap; }
+.jt-value { cursor: pointer; color: #9cdcfe; }
+.jt-value.changed, .jt-byte.changed, .jt-hex-row.changed .jt-byte { color: #ffcc66; background: rgba(255, 204, 102, .15); }
+.jt-link { cursor: pointer; text-decoration: underline dotted; }
+.jt-spark { width: 80px; height: 16px; vertical-align: middle; margin-right: 6px; }
+.jt-spark polyline { fill: none; stroke: #4fc1ff; stroke-width: 1.5; }
+.jt-format { margin: 0; padding: 0 2px; font-size: 11px; }
+.jt-memory-bar { display: flex; gap: 6px; margin-bottom: 6px; }
+.jt-hex-row { display: flex; gap: 8px; }
+.jt-addr, .jt-regname { color: var(--muted); }
+.jt-byte { margin-right: 2px; }
+.jt-ascii { color: var(--muted); margin-left: 8px; white-space: pre; }
+.jt-owner { color: #4ec9b0; }
+.jt-section { color: var(--muted); margin: 6px 0 2px; text-transform: uppercase; font-size: 11px; }
+.jt-frame { display: flex; gap: 10px; }
+.jt-frame.current { color: #ffcc66; }
+.jt-regs { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 2px 12px; }
+.jt-reg { display: flex; gap: 8px; }
+.jt-entry { display: flex; gap: 10px; }
+.jt-time { color: var(--muted); }
+/* Values drawn after the code that uses them (Monaco "after" decorations). */
+.jt-inline { color: #6a9955; font-style: italic; }
+.jt-inline.changed { color: #ffcc66; }

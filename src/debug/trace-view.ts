@@ -62,6 +62,8 @@ export class Debugger {
   private readonly trailDecorations = new Map<monaco.editor.ITextModel, string[]>();
   private trailTimer?: number;
   state: DebugState = "off";
+  /** Called when breakpoints are added or removed (the JTAG inspector mirrors them in hardware). */
+  onBreakpointsChanged?: () => void;
 
   constructor(
     private readonly editor: monaco.editor.IStandaloneCodeEditor,
@@ -188,6 +190,19 @@ export class Debugger {
     else set.add(snapped);
     this.renderBreakpoints();
     void this.sendBreakpoints();
+    this.onBreakpointsChanged?.();
+  }
+
+  /** Start address of the code of every breakpoint line, for hardware breakpoints. */
+  breakpointAddresses(table: LineTable): number[] {
+    const addrs: number[] = [];
+    for (const [file, lines] of this.breakpoints) {
+      for (const line of lines) {
+        const r = rangesForLine(table, file, line)?.ranges[0];
+        if (r) addrs.push(r[0]);
+      }
+    }
+    return addrs;
   }
 
   private async sendBreakpoints(): Promise<void> {

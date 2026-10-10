@@ -19,6 +19,8 @@ export interface LineTable {
   /** Function ranges: start, end, name index (into names). */
   funcs: number[];
   names: string[];
+  /** Data symbols (globals, statics): address, size, name index (into names). Used by the JTAG inspector. */
+  objects: number[];
 }
 
 class Reader {
@@ -154,6 +156,10 @@ function parseSymbols(sections: ElfSection[], bytes: Uint8Array, table: LineTabl
     const info = dv.getUint8(o + 12);
     const value = dv.getUint32(o + 4, true);
     const size = dv.getUint32(o + 8, true);
+    if ((info & 0xf) === 1 && size && value) { // STT_OBJECT
+      table.objects.push(value, size, table.names.push(demangle(nameAt(dv.getUint32(o, true)))) - 1);
+      continue;
+    }
     if ((info & 0xf) !== 2 || !size || !covered(value)) continue; // STT_FUNC with user line info
     table.funcs.push(value, value + size, table.names.push(demangle(nameAt(dv.getUint32(o, true)))) - 1);
   }
@@ -161,7 +167,7 @@ function parseSymbols(sections: ElfSection[], bytes: Uint8Array, table: LineTabl
 
 /** Build the line table for the files matching `isUserFile` (e.g. the user's /src/ files). */
 export function buildLineTable(sections: ElfSection[], bytes: Uint8Array, isUserFile: (f: string) => boolean): LineTable {
-  const table: LineTable = { files: [], rows: [], funcs: [], names: [] };
+  const table: LineTable = { files: [], rows: [], funcs: [], names: [], objects: [] };
   const debugLine = sections.find((s) => s.name === ".debug_line");
   if (!debugLine) return table;
   const raw: number[][] = [];
@@ -196,6 +202,34 @@ export function locate(t: LineTable, pc: number): SourceLocation | undefined {
     if (at >= t.funcs[i] && at < t.funcs[i + 1]) func = t.names[t.funcs[i + 2]];
   }
   return { file: t.files[t.rows[row * 3 + 2]], line: t.rows[row * 3 + 1], func };
+}
+
+/** Source location of a PC that is the exact address of the next instruction (as JTAG reports it). */
+export function locateExact(t: LineTable, pc: number): SourceLocation | undefined {
+  return locate(t, pc + 3); // locate() takes a return address and looks 3 bytes (a call instruction) before it
+}
+
+export interface DataSymbol {
+  name: string;
+  addr: number;
+  size: number;
+}
+
+/** All data symbols, sorted by address. */
+export function dataSymbols(t: LineTable): DataSymbol[] {
+  const out: DataSymbol[] = [];
+  for (let i = 0; i + 2 < t.objects.length; i += 3) {
+    out.push({ addr: t.objects[i], size: t.objects[i + 1], name: t.names[t.objects[i + 2]] });
+  }
+  return out.sort((a, b) => a.addr - b.addr);
+}
+
+/** The function containing pc, if it has line info. */
+export function functionAt(t: LineTable, pc: number): { name: string; start: number; end: number } | undefined {
+  for (let i = 0; i < t.funcs.length; i += 3) {
+    if (pc >= t.funcs[i] && pc < t.funcs[i + 1]) return { start: t.funcs[i], end: t.funcs[i + 1], name: t.names[t.funcs[i + 2]] };
+  }
+  return undefined;
 }
 
 /** Address ranges [start, end) of all code on one line. */

@@ -87,6 +87,24 @@ Tick **Trace** and flash. The debugger bar works with the usual keys:
   - Code in interrupts is highlighted but never paused.
   - Trace builds use `-Og`, so they're larger and slower.
 
+## Inspect (hardware debugging over USB-JTAG)
+
+**Inspect** opens a DevTools-style panel under the editor that talks to the ESP32-S3's built-in USB-JTAG
+(WebUSB, Chrome/Edge; no extra hardware, use the board's native USB port). Build with **Trace** on so the
+inspector has your sources' line table and symbols, flash, then **Connect JTAG**.
+
+- **In the editor**: the paused line is highlighted, globals your code uses show their live value after the
+  line (changed values glow), hovering a variable shows its value and address, and gutter breakpoints become
+  hardware breakpoints (two available).
+- **Variables**: search every variable in the firmware, watch it, change its value (click it), switch
+  dec/hex/float, and see a history sparkline.
+- **Memory**: hex view by address or variable name; bytes that changed since the last stop are highlighted.
+- **Stack**, **Registers**, **Timeline** (every stop and every variable change, click to jump to the line).
+- **Pause / Continue / Step / Step over / Step instruction**, and **Live** (briefly halts the CPU twice a second).
+
+The Xtensa debug-module code (`src/debug/jtag/xtensa-ocd.ts`) follows the OCD documentation and OpenOCD but has
+not yet been run against hardware. It drives the PRO_CPU only. On Windows the JTAG interface needs the WinUSB driver.
+
 ## Develop
 
 ```sh
