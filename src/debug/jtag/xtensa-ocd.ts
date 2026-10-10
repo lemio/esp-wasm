@@ -128,18 +128,20 @@ export class XtensaOcd implements DebugTarget {
   /** Run one instruction on the halted core and wait for it to finish. */
   private async exec(insn: number): Promise<void> {
     await this.dbg(NAR_DIR0EXEC, insn);
+    let dsr = 0;
     for (let i = 0; i < 100; i++) {
-      const dsr = await this.dbgRead(NAR_DSR);
+      dsr = await this.dbgRead(NAR_DSR);
       if (dsr & (DSR_EXECEXCEPTION | DSR_EXECOVERRUN)) {
         await this.dbg(NAR_DSR, DSR_EXECEXCEPTION | DSR_EXECOVERRUN | DSR_EXECDONE);
-        throw new Error("The core raised an exception while the debugger ran an instruction");
+        throw new Error(`The core raised an exception while the debugger ran instruction ${hex(insn)} (DSR ${hex(dsr)})`);
       }
-      if (!(dsr & DSR_EXECBUSY) && dsr & DSR_EXECDONE) {
-        await this.dbg(NAR_DSR, DSR_EXECDONE);
+      // OpenOCD only waits for ExecBusy to clear; ExecDone is a bonus we don't insist on forever.
+      if (!(dsr & DSR_EXECBUSY) && (dsr & DSR_EXECDONE || i >= 5)) {
+        if (dsr & DSR_EXECDONE) await this.dbg(NAR_DSR, DSR_EXECDONE);
         return;
       }
     }
-    throw new Error("Timed out waiting for the core to execute an instruction");
+    throw new Error(`Timed out waiting for the core to execute instruction ${hex(insn)} (DSR ${hex(dsr)})`);
   }
 
   private async readAr(n: number): Promise<number> {
@@ -207,13 +209,18 @@ export class XtensaOcd implements DebugTarget {
     this.breakpoints = addrs.slice(0, 2);
   }
 
+  /** Breakpoints currently programmed in the core (IBREAKENABLE is 0 after a reset). */
+  private applied: number[] = [];
+
   private async applyBreakpoints(): Promise<void> {
+    if (this.breakpoints.length === this.applied.length && this.breakpoints.every((a, i) => a === this.applied[i])) return;
     let enable = 0;
     for (let i = 0; i < this.breakpoints.length; i++) {
       await this.writeSr(SR_IBREAKA0 + i, this.breakpoints[i]);
       enable |= 1 << i;
     }
     await this.writeSr(SR_IBREAKENABLE, enable);
+    this.applied = [...this.breakpoints];
   }
 
   async resume(): Promise<void> {
