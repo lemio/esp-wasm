@@ -40,6 +40,10 @@ export interface InspectorHost {
 }
 
 const HISTORY = 40;
+/** Live mode: longest intended pause, shortest gap between pauses, and gap as a multiple of the last pause. */
+const LIVE_BUDGET_MS = 100;
+const LIVE_MIN_GAP_MS = 1000;
+const LIVE_DUTY = 20;
 const MAX_AUTO = 16;
 const STACK_WORDS = 48;
 const MAX_STEPS = 4000;
@@ -118,7 +122,7 @@ export class JtagInspector {
     add("insn", "Step instruction", "Execute exactly one machine instruction", () => this.stepInstruction());
     this.live.type = "checkbox";
     const liveLabel = el("label", "check");
-    liveLabel.title = "Briefly halt the CPU twice a second to refresh values while the program runs";
+    liveLabel.title = "Briefly pause the CPU (under 100 ms, at most every second) to refresh watched variables while the program runs; the interrupt watchdog panics the chip if it's halted longer";
     liveLabel.append(this.live, " Live");
     this.live.onchange = () => void this.livePoll();
     this.verbose.type = "checkbox";
@@ -276,17 +280,36 @@ export class JtagInspector {
     }
   }
 
+  /**
+   * Live values. The chip's interrupt watchdog (about 300 ms) panics the core if it's
+   * halted for long, and every register or memory word costs several USB round trips,
+   * so each pause is kept to a small time budget: only watched variables are read (no
+   * registers, stack or memory view), a few at a time in round-robin order, and the gap
+   * between pauses grows with the measured pause length so the program mostly runs.
+   */
   private async livePoll(): Promise<void> {
+    let next = 0;
+    let gap = LIVE_MIN_GAP_MS;
     while (this.live.checked && this.target) {
-      if (!this.halted) {
+      if (!this.halted && this.watches.length) {
         const t = this.target;
         try {
+          let paused = 0;
           await this.run(async () => {
+            const start = performance.now();
             await t.halt();
-            await this.read();
+            const budgetEnd = start + LIVE_BUDGET_MS;
+            for (let n = 0; n < this.watches.length && (n === 0 || performance.now() < budgetEnd); n++) {
+              const w = this.watches[(next + n) % this.watches.length];
+              await this.readWatch(t, w);
+              next = (next + n + 1) % this.watches.length;
+            }
             t.setBreakpoints(this.hardwareBreakpoints());
             await t.resume();
+            paused = performance.now() - start;
           });
+          gap = Math.max(LIVE_MIN_GAP_MS, paused * LIVE_DUTY);
+          if (paused > LIVE_BUDGET_MS * 2) this.host.log(`JTAG live: pausing took ${Math.round(paused)} ms; the interrupt watchdog may trip. Watch fewer variables.`, "muted");
           this.render();
           this.renderInline();
         } catch (e) {
@@ -294,7 +317,7 @@ export class JtagInspector {
           this.live.checked = false;
         }
       }
-      await sleep(500);
+      await sleep(gap);
     }
   }
 
@@ -374,19 +397,21 @@ export class JtagInspector {
     const dv = new DataView(raw.buffer, raw.byteOffset, raw.byteLength);
     const words = Array.from({ length: STACK_WORDS }, (_, i) => dv.getUint32(i * 4, true));
     this.stack = { base: sp, words, prev: this.stack?.base === sp ? this.stack.words : undefined };
-    for (const w of this.watches) {
-      const bytes = await t.readMemory(w.sym.addr, Math.min(w.sym.size, 64));
-      const before = w.bytes;
-      w.changed = !!before && before.some((x, i) => x !== bytes[i]);
-      w.bytes = bytes;
-      if (w.sym.size <= 8) w.history = [...w.history, toNumber(bytes, true)].slice(-HISTORY);
-      if (w.changed && before) this.note(`${w.sym.name}: ${formatValue({ ...w, bytes: before })} → ${formatValue(w)}`);
-    }
+    for (const w of this.watches) await this.readWatch(t, w);
     if (this.tab === "Memory" || this.memory.bytes) {
       this.memory.prev = this.memory.bytes;
       this.memory.bytes = await t.readMemory(this.memory.addr, this.memory.length);
     }
     this.where = this.table ? locateExact(this.table, this.regs.pc) : undefined;
+  }
+
+  private async readWatch(t: DebugTarget, w: Watch): Promise<void> {
+    const bytes = await t.readMemory(w.sym.addr, Math.min(w.sym.size, 64));
+    const before = w.bytes;
+    w.changed = !!before && before.some((x, i) => x !== bytes[i]);
+    w.bytes = bytes;
+    if (w.sym.size <= 8) w.history = [...w.history, toNumber(bytes, true)].slice(-HISTORY);
+    if (w.changed && before) this.note(`${w.sym.name}: ${formatValue({ ...w, bytes: before })} → ${formatValue(w)}`);
   }
 
   private note(text: string): void {

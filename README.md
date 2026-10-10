@@ -100,7 +100,7 @@ inspector has your sources' line table and symbols, flash, then **Connect JTAG**
   dec/hex/float, and see a history sparkline.
 - **Memory**: hex view by address or variable name; bytes that changed since the last stop are highlighted.
 - **Stack**, **Registers**, **Timeline** (every stop and every variable change, click to jump to the line).
-- **Pause / Continue / Step / Step over / Step instruction**, and **Live** (briefly halts the CPU twice a second).
+- **Pause / Continue / Step / Step over / Step instruction**, and **Live** (short pauses, under 100 ms each, to refresh watched variables).
 
 The Xtensa debug-module code (`src/debug/jtag/xtensa-ocd.ts`) follows the OCD documentation and OpenOCD but has
 not yet been run against hardware. It drives the PRO_CPU only. On Windows the JTAG interface needs the WinUSB driver.
