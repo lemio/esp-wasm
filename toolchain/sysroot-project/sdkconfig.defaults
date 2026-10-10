@@ -1,0 +1,46 @@
+CONFIG_IDF_TARGET="esp32s3"
+
+# Flash settings must match manifest.json "image" (used by elf2image).
+# 4 MB is the smallest flash on any ESP32-S3 module. partitions.csv gives the
+# app 3 MB (sketches with Wi-Fi + BLE + a web server pass 1.5 MB) and keeps a
+# SPIFFS/LittleFS partition.
+CONFIG_ESPTOOLPY_FLASHMODE_DIO=y
+CONFIG_ESPTOOLPY_FLASHFREQ_80M=y
+CONFIG_ESPTOOLPY_FLASHSIZE_4MB=y
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+
+# Console on UART0 (the DevKit's USB-UART port) and mirrored to the native
+# USB-Serial/JTAG, so the serial monitor shows output whichever USB port is used.
+CONFIG_ESP_CONSOLE_UART_DEFAULT=y
+CONFIG_ESP_CONSOLE_SECONDARY_USB_SERIAL_JTAG=y
+
+CONFIG_COMPILER_OPTIMIZATION_SIZE=y
+# Arduino libraries expect these, as in the Arduino IDE's builds.
+CONFIG_COMPILER_CXX_EXCEPTIONS=y
+CONFIG_COMPILER_CXX_RTTI=y
+
+# --- Arduino core (arduino-esp32) ---
+CONFIG_FREERTOS_HZ=1000
+CONFIG_AUTOSTART_ARDUINO=y
+CONFIG_ARDUINO_SELECTIVE_COMPILATION=y
+# Left out: need extra components or hardware the S3 doesn't have.
+CONFIG_ARDUINO_SELECTIVE_Zigbee=n
+CONFIG_ARDUINO_SELECTIVE_Matter=n
+CONFIG_ARDUINO_SELECTIVE_RainMaker=n
+CONFIG_ARDUINO_SELECTIVE_OpenThread=n
+CONFIG_ARDUINO_SELECTIVE_Insights=n
+CONFIG_ARDUINO_SELECTIVE_ESP_SR=n
+CONFIG_ARDUINO_SELECTIVE_ESP_Video=n
+CONFIG_ARDUINO_SELECTIVE_WiFiProv=n
+CONFIG_ARDUINO_SELECTIVE_PPP=n
+CONFIG_ARDUINO_SELECTIVE_BluetoothSerial=n
+CONFIG_ARDUINO_SELECTIVE_SimpleBLE=n
+
+# NetworkClientSecure (setPreSharedKey) needs PSK cipher suites, as in Arduino's builds.
+CONFIG_MBEDTLS_PSK_MODES=y
+CONFIG_MBEDTLS_KEY_EXCHANGE_PSK=y
+
+# BLE through NimBLE (smaller than Bluedroid; the BLE library supports both).
+CONFIG_BT_ENABLED=y
+CONFIG_BT_NIMBLE_ENABLED=y

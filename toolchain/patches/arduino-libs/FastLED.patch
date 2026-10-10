@@ -1,0 +1,19 @@
+diff --git a/src/fl/math/ease.cpp.hpp b/src/fl/math/ease.cpp.hpp
+index 57c2717..0d30526 100644
+--- a/src/fl/math/ease.cpp.hpp
++++ b/src/fl/math/ease.cpp.hpp
+@@ -85,7 +85,13 @@ u8 easeInOutCubic8(u8 i) {
+     constexpr u16 MAX = 0xFF;                  // 255
+     constexpr u16 HALF = (MAX + 1) >> 1;       // 128
+     constexpr u32 DENOM = (u32)MAX * MAX; // 255*255 = 65025
+-    constexpr u32 ROUND = DENOM >> 1;          // for rounding
++    // esp-wasm: Espressif's Xtensa LLVM 20 backend can't select ADDMI for this
++    // exact constant (32512, the instruction's maximum) and crashes. Hide it
++    // from instruction selection by passing it through a register.
++    u32 ROUND = DENOM >> 1;                    // for rounding
++#if defined(__clang__) && defined(__XTENSA__)
++    __asm__("" : "+r"(ROUND));
++#endif
+ 
+     if (i < HALF) {
+         // first half: y = 4·(i/MAX)³ → y_i = 4·i³ / MAX²

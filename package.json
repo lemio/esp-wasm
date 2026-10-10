@@ -1,0 +1,23 @@
+{
+  "name": "esp-wasm",
+  "version": "0.0.1",
+  "description": "Browser-only ESP32-S3 compiler and flasher (WASM + JS)",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@bjorn3/browser_wasi_shim": "^0.4.2",
+    "esptool-js": "^0.7.0",
+    "monaco-editor": "^0.57.0"
+  },
+  "devDependencies": {
+    "@types/w3c-web-serial": "^1.0.8",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.1"
+  },
+  "private": true,
+  "type": "module"
+}

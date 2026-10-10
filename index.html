@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Inline so browsers don't request /favicon.ico outside the app's folder. -->
+    <link rel="icon" href="data:," />
+    <title>esp-wasm — ESP32-S3 in the browser</title>
+  </head>
+  <body>
+    <header class="toolbar">
+      <strong class="brand">esp-wasm</strong>
+      <span class="target">ESP32-S3</span>
+      <button id="btn-examples" class="secondary" aria-expanded="false" aria-controls="examples-panel"
+              title="Browse the Arduino core's and libraries' examples">Examples</button>
+      <select id="select-mode" title="Project type">
+        <option value="arduino">Arduino</option>
+        <option value="idf">ESP-IDF (C)</option>
+      </select>
+      <button id="btn-flash" class="primary" title="Compile, put the chip in download mode, flash and reset">Flash</button>
+      <label class="check" title="Build with line tracing: while the sketch runs, the line it's executing is highlighted">
+        <input type="checkbox" id="chk-trace" /> Trace
+      </label>
+      <button id="btn-reset" class="secondary" title="Reset the chip and run the app (same as tapping RESET)">Reset</button>
+      <button id="btn-disconnect" class="secondary" title="Release the serial port (stops the monitor), e.g. for another program" disabled>Disconnect</button>
+      <!-- Single steps for troubleshooting; hidden unless the URL has ?tools. -->
+      <span id="debug-tools" class="debug-tools" title="Single steps, for debugging" hidden>
+        <span class="debug-label">Debug</span>
+        <button id="btn-build" class="secondary">Build</button>
+        <button id="btn-connect" class="secondary">Connect</button>
+        <button id="btn-boot" class="secondary" title="Put the chip into download mode (same as holding BOOT and tapping RESET)">Boot mode</button>
+        <button id="btn-monitor" class="secondary" title="Show what the chip prints on the serial port">Monitor</button>
+        <label class="file-btn secondary" title="Flash prebuilt .bin files (bootloader, partition table, app)">
+          Flash .bin…
+          <input id="input-bins" type="file" accept=".bin" multiple hidden />
+        </label>
+      </span>
+      <span id="status" class="status">Idle</span>
+    </header>
+    <main class="layout">
+      <div class="workspace">
+        <aside id="examples-panel" class="examples-panel" hidden aria-label="Examples"></aside>
+        <section class="editor-area">
+          <div id="debug-bar" class="debug-bar" role="toolbar" aria-label="Debugger" hidden>
+            <button id="dbg-pause" class="dbg" title="Pause (F6) / Continue (F5)">Pause</button>
+            <button id="dbg-over" class="dbg" title="Step over (F10): run this line, including calls">Step over</button>
+            <button id="dbg-into" class="dbg" title="Step into (F11): stop at the next line, also inside calls">Step into</button>
+            <button id="dbg-out" class="dbg" title="Step out (Shift+F11): run until this function returns">Step out</button>
+            <span id="dbg-where" class="dbg-where" aria-live="polite"></span>
+            <span class="dbg-hint">Click in the gutter for breakpoints</span>
+          </div>
+          <div id="tabs" class="tabs" role="tablist" hidden></div>
+          <section id="editor" class="editor"></section>
+        </section>
+      </div>
+      <section class="console-pane">
+        <div class="console-header">
+          <span>Output</span>
+          <button id="btn-clear" class="small">Clear</button>
+        </div>
+        <pre id="console" class="console"></pre>
+      </section>
+    </main>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

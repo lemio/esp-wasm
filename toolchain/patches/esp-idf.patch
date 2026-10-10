@@ -1,0 +1,23 @@
+diff --git a/components/esp_driver_rmt/src/rmt_tx.c b/components/esp_driver_rmt/src/rmt_tx.c
+index 061125d319..7f2f2b243b 100644
+--- a/components/esp_driver_rmt/src/rmt_tx.c
++++ b/components/esp_driver_rmt/src/rmt_tx.c
+@@ -610,12 +610,17 @@ size_t rmt_tx_mark_eof(rmt_tx_channel_t *tx_chan, bool need_eof_marker)
+         }
+         size_t symbol_off = tx_chan->mem_off_bytes / sizeof(rmt_symbol_word_t);
+         // a RMT word whose duration is zero means a "stop" pattern
+-        mem_to_nc[symbol_off] = (rmt_symbol_word_t) {
++        rmt_symbol_word_t eof = {
+             .duration0 = 0,
+             .level0 = cur_trans->flags.eot_level,
+             .duration1 = 0,
+             .level1 = cur_trans->flags.eot_level,
+         };
++        // esp-wasm: one 32-bit write. RMT memory only takes whole words, and
++        // through a plain pointer clang splits this store into two 16-bit
++        // stores (both halves are equal). The marker is then lost, the
++        // transmission never ends, and "TX done" never comes.
++        ((volatile uint32_t *)mem_to_nc)[symbol_off] = eof.val;
+         tx_chan->mem_off_bytes += sizeof(rmt_symbol_word_t);
+     }
+ 

@@ -1,0 +1,22 @@
+# arduino-esp32 compiles a library under CONFIG_ARDUINO_SELECTIVE_COMPILATION
+# only if CONFIG_ARDUINO_SELECTIVE_<name> is set, but declares no switch for
+# these. Declare them so they're included.
+menu "esp-wasm Arduino libraries"
+    depends on ARDUINO_SELECTIVE_COMPILATION
+
+config ARDUINO_SELECTIVE_ESP_I2S
+    bool "ESP_I2S"
+    default y
+config ARDUINO_SELECTIVE_ESP_NOW
+    bool "ESP_NOW"
+    default y
+config ARDUINO_SELECTIVE_Console
+    bool "Console"
+    default y
+config ARDUINO_SELECTIVE_HTTPUpdate
+    bool "HTTPUpdate"
+    default y
+config ARDUINO_SELECTIVE_HTTPUpdateServer
+    bool "HTTPUpdateServer"
+    default y
+endmenu

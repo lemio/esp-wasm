@@ -1,0 +1,25 @@
+diff --git a/esp.c b/esp.c
+index cf78cdf..c91e659 100644
+--- a/esp.c
++++ b/esp.c
+@@ -80,6 +80,7 @@ void espShow(uint8_t pin, uint8_t *pixels, uint32_t numBytes, boolean is800KHz)
+         }
+         if (!rmtInit(pin, RMT_TX_MODE, RMT_MEM_NUM_BLOCKS_1, 10000000)) {
+           log_e("Failed to init RMT TX mode on pin %d", pin);
++          xSemaphoreGive(show_mutex);  // esp-wasm: don't leave show() locked forever
+           return;
+         }
+         rmtPin = pin;
+@@ -104,7 +105,11 @@ void espShow(uint8_t pin, uint8_t *pixels, uint32_t numBytes, boolean is800KHz)
+           }
+         }
+ 
+-        rmtWrite(pin, led_data, numBytes * 8, RMT_WAIT_FOR_EVER);
++        // esp-wasm: bounded wait. A lost "TX done" event must not freeze the
++        // sketch; at 800 kHz even 1000 LEDs take only 30 ms.
++        if (!rmtWrite(pin, led_data, numBytes * 8, 100)) {
++          log_w("RMT write on pin %d didn't complete in 100 ms", pin);
++        }
+       }
+     }
+ 

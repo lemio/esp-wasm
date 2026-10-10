@@ -1,0 +1,22 @@
+{
+  // toolchain/out holds ~15 GB of cloned sources (LLVM, ESP-IDF, arduino-esp32, …).
+  // Keep VS Code from watching, indexing and git-fetching them.
+  "files.watcherExclude": {
+    "**/toolchain/out/**": true,
+    "**/toolchain/sysroot-project/build/**": true,
+    "**/toolchain/sysroot-project/managed_components/**": true,
+    "**/public/toolchain/**": true
+  },
+  "search.exclude": {
+    "**/toolchain/out": true,
+    "**/toolchain/sysroot-project/build": true,
+    "**/toolchain/sysroot-project/managed_components": true,
+    "**/public/toolchain": true
+  },
+  "git.autoRepositoryDetection": "openEditors",
+  "git.repositoryScanIgnoredFolders": [
+    "node_modules",
+    "toolchain/out"
+  ],
+  "cmake.sourceDirectory": "/Users/geertroumen/Code/Git/esp-wasm/toolchain/sysroot-project"
+}

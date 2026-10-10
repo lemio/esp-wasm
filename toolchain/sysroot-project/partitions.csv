@@ -1,0 +1,8 @@
+# Arduino's "Huge APP (3MB No OTA/1MB SPIFFS)" layout for 4 MB flash, with a
+# factory app instead of OTA slots (the browser flashes over USB, not OTA).
+# Name,   Type, SubType,  Offset,   Size,     Flags
+nvs,      data, nvs,      0x9000,   0x5000,
+phy_init, data, phy,      0xe000,   0x1000,
+factory,  app,  factory,  0x10000,  0x300000,
+spiffs,   data, spiffs,   0x310000, 0xE0000,
+coredump, data, coredump, 0x3F0000, 0x10000,

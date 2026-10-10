@@ -1,0 +1,11 @@
+node_modules/
+dist/
+public/toolchain/*
+!public/toolchain/.gitkeep
+toolchain/out/
+toolchain/sysroot-project/build/
+toolchain/sysroot-project/sdkconfig
+.DS_Store
+__pycache__/
+toolchain/sysroot-project/managed_components/
+toolchain/sysroot-project/dependencies.lock

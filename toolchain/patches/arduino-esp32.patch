@@ -1,0 +1,61 @@
+diff --git a/cores/esp32/esp32-hal-rmt.c b/cores/esp32/esp32-hal-rmt.c
+index 184cd0abf..8f67d0c3a 100644
+--- a/cores/esp32/esp32-hal-rmt.c
++++ b/cores/esp32/esp32-hal-rmt.c
+@@ -104,6 +104,27 @@ static bool _rmt_tx_done_callback(rmt_channel_handle_t channel, const rmt_tx_don
+   return high_task_wakeup == pdTRUE;
+ }
+ 
++// esp-wasm: the TX done callback sets RMT_FLAG_TX_DONE with
++// xEventGroupSetBitsFromISR(), which only queues the work for the FreeRTOS
++// timer task. If that queue is full the post is dropped, the bit never gets
++// set, and a blocking rmtWrite() (e.g. Adafruit NeoPixel's show()) waits
++// forever. Ask the RMT driver itself instead, which doesn't depend on the
++// timer task. timeout_ms: 0 = just check, RMT_WAIT_FOR_EVER = no limit.
++static bool _rmtTxDone(rmt_bus_handle_t bus, uint32_t timeout_ms) {
++  if (xEventGroupGetBits(bus->rmt_events) & RMT_FLAG_TX_DONE) {
++    return true;
++  }
++  if (bus->rmt_ch_is_looping) {
++    return false;  // a looping transmission never completes
++  }
++  int wait = timeout_ms == RMT_WAIT_FOR_EVER ? -1 : (int)timeout_ms;
++  if (rmt_tx_wait_all_done(bus->rmt_channel_h, wait) != ESP_OK) {
++    return false;
++  }
++  xEventGroupSetBits(bus->rmt_events, RMT_FLAG_TX_DONE);
++  return true;
++}
++
+ // This function must be called only after checking the pin and its bus with _rmtGetBus()
+ static bool _rmtCheckDirection(uint8_t gpio_num, rmt_ch_dir_t rmt_dir, const char *labelFunc) {
+   // gets bus RMT direction from the Peripheral Manager information
+@@ -322,7 +343,7 @@ static bool _rmtWrite(int pin, rmt_data_t *data, size_t num_rmt_symbols, bool bl
+   }
+ #endif
+ 
+-  if ((xEventGroupGetBits(bus->rmt_events) & RMT_FLAG_TX_DONE) == 0) {
++  if (!_rmtTxDone(bus, 0)) {
+     log_v("GPIO %d - RMT Write still pending to be completed.", pin);
+     return false;
+   }
+@@ -368,9 +389,7 @@ static bool _rmtWrite(int pin, rmt_data_t *data, size_t num_rmt_symbols, bool bl
+       } else {
+         if (blocking) {
+           // wait for transmission confirmation | timeout
+-          retCode = (xEventGroupWaitBits(bus->rmt_events, RMT_FLAG_TX_DONE, pdFALSE /* do not clear on exit */, pdFALSE /* wait for all bits */, timeout_ms)
+-                     & RMT_FLAG_TX_DONE)
+-                    != 0;
++          retCode = _rmtTxDone(bus, timeout_ms);
+         }
+       }
+     }
+@@ -472,7 +491,7 @@ bool rmtTransmitCompleted(int pin) {
+ 
+   bool retCode = true;
+   RMT_MUTEX_LOCK(bus);
+-  retCode = (xEventGroupGetBits(bus->rmt_events) & RMT_FLAG_TX_DONE) != 0;
++  retCode = _rmtTxDone(bus, 0);
+   RMT_MUTEX_UNLOCK(bus);
+   return retCode;
+ }

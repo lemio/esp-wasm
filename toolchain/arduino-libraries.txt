@@ -1,0 +1,27 @@
+# Third-party Arduino libraries precompiled into the sysroot.
+# Picked from the most popular Arduino libraries on PlatformIO
+# (registry.platformio.org, sorted by popularity) that work on an ESP32-S3
+# without per-project configuration. Skipped: display drivers that need a
+# board-specific config header (TFT_eSPI, LovyanGFX, lvgl, M5GFX, GFX Library
+# for Arduino), test frameworks (Unity, googletest), ESPHome internals
+# (libsodium, noise-c, Improv), ESP8266-only (ESPAsyncTCP), and NimBLE-Arduino
+# (the core's BLE library already uses NimBLE), NeoPixelBus (uses the legacy
+# RMT driver that ESP-IDF 6 removed; Adafruit NeoPixel and FastLED cover it).
+# Fixes for clang are in patches/arduino-libs/<component>.patch.
+#
+# component        github repo                     tag
+NeoPixel           adafruit/Adafruit_NeoPixel      1.15.5
+ArduinoJson        bblanchon/ArduinoJson           v7.4.3
+Adafruit_BusIO     adafruit/Adafruit_BusIO         1.17.4
+Adafruit_GFX       adafruit/Adafruit-GFX-Library   1.12.6
+Adafruit_Sensor    adafruit/Adafruit_Sensor        1.1.15
+Adafruit_SSD1306   adafruit/Adafruit_SSD1306       2.5.17
+Adafruit_SH110X    adafruit/Adafruit_SH110X        2.1.15
+Adafruit_seesaw    adafruit/Adafruit_Seesaw        1.7.9
+DHT                adafruit/DHT-sensor-library     1.4.7
+PubSubClient       knolleary/pubsubclient          v2.8
+FastLED            FastLED/FastLED                 3.10.5
+AsyncTCP           ESP32Async/AsyncTCP             v3.5.0
+ESPAsyncWebServer  ESP32Async/ESPAsyncWebServer    v3.12.1
+U8g2               olikraus/U8g2_Arduino           2.36.18
+WebSockets         Links2004/arduinoWebSockets     2.7.2
