@@ -104,37 +104,79 @@ export class UsbJtag {
   }
 }
 
-/** The TAP state machine on top of the adapter. Starts and ends every scan in Run-Test/Idle. */
+/**
+ * The TAP state machine on top of the adapter. Starts and ends every scan in Run-Test/Idle.
+ * The chain may hold several TAPs (the ESP32-S3 has one per core): the others are put in BYPASS.
+ * Bits shifted first end up in the TAP nearest TDO, which is index 0.
+ */
 export class Tap {
+  private taps = 1;
+  private index = 0;
+
   constructor(private readonly probe: UsbJtag, private readonly irLength: number) {}
+
+  /** The chain has `taps` TAPs (all with this IR length); talk to the one at `index`. */
+  configure(taps: number, index: number): void {
+    this.taps = taps;
+    this.index = index;
+  }
 
   /** Five TMS=1 clocks reach Test-Logic-Reset from anywhere; then go to Run-Test/Idle. */
   async reset(): Promise<void> {
     await this.probe.clock([1, 1, 1, 1, 1, 0], [0, 0, 0, 0, 0, 0], new Array(6).fill(false));
   }
 
+  /** After a reset every TAP's DR is its IDCODE (or a 1-bit bypass bit): read them all, nearest TDO first. */
+  async readIdcodes(max = 4): Promise<number[]> {
+    const n = max * 32;
+    const tms = [1, 0, 0, ...new Array(n).fill(0), 1, 0];
+    tms[2 + n] = 1; // last shift clock leaves Shift-DR
+    const tdi = tms.map(() => 1);
+    const cap = tms.map((_, i) => i >= 3 && i < 3 + n);
+    const bits = await this.probe.clock(tms.slice(0, 3 + n).concat([1, 0]), tdi, cap);
+    const ids: number[] = [];
+    for (let i = 0; i < n;) {
+      if (!bits[i]) { i++; continue; } // a bypass bit (0) of a TAP without IDCODE
+      let id = 0;
+      for (let b = 0; b < 32 && i + b < n; b++) id |= bits[i + b] << b;
+      if ((id >>> 0) === 0xffffffff) break; // our TDI ones coming back: end of chain
+      ids.push(id >>> 0);
+      i += 32;
+    }
+    return ids;
+  }
+
   async shiftIR(value: number): Promise<void> {
-    await this.scan([1, 1, 0, 0], value, this.irLength);
+    const bits: number[] = [];
+    for (let t = 0; t < this.taps; t++) {
+      for (let i = 0; i < this.irLength; i++) bits.push(t === this.index ? (value >>> i) & 1 : 1); // 11111 = BYPASS
+    }
+    await this.scanBits([1, 1, 0, 0], bits, -1, 0);
   }
 
   /** Shift up to 32 bits through the selected data register; returns what came out. */
   shiftDR(value: number, length: number): Promise<number> {
-    return this.scan([1, 0, 0], value, length);
+    const bits = [
+      ...new Array(this.index).fill(0),
+      ...Array.from({ length }, (_, i) => (i < 32 ? (value >>> i) & 1 : 0)),
+      ...new Array(this.taps - 1 - this.index).fill(0),
+    ];
+    return this.scanBits([1, 0, 0], bits, this.index, length);
   }
 
-  private async scan(prefix: number[], value: number, length: number): Promise<number> {
+  private async scanBits(prefix: number[], data: number[], captureFrom: number, captureLength: number): Promise<number> {
     const tms = [...prefix], tdi = prefix.map(() => 0), cap = prefix.map(() => false);
-    for (let i = 0; i < length; i++) {
-      tms.push(i === length - 1 ? 1 : 0);
-      tdi.push(i < 32 ? (value >>> i) & 1 : 0);
-      cap.push(true);
-    }
+    data.forEach((bit, i) => {
+      tms.push(i === data.length - 1 ? 1 : 0);
+      tdi.push(bit);
+      cap.push(captureFrom >= 0 && i >= captureFrom && i < captureFrom + captureLength);
+    });
     tms.push(1, 0); // Update, then Run-Test/Idle
     tdi.push(0, 0);
     cap.push(false, false);
     const bits = await this.probe.clock(tms, tdi, cap);
     let out = 0;
-    for (let i = 0; i < Math.min(length, 32); i++) out |= bits[i] << i;
+    for (let i = 0; i < Math.min(captureLength, 32); i++) out |= bits[i] << i;
     return out >>> 0;
   }
 }

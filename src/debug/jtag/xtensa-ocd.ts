@@ -12,7 +12,6 @@ import type { DebugTarget, Registers } from "./target";
 
 const IR_NAR = 0x1c;
 const IR_NDR = 0x1d;
-const IR_IDCODE = 0x1e;
 const IR_LENGTH = 5;
 
 // NAR addresses of the debug registers.
@@ -44,6 +43,7 @@ const RFDO_0 = 0xf1e000;
 const SCRATCH_ADDR = 3; // a3 holds the address, a4 the data, while reading memory
 const SCRATCH_DATA = 4;
 
+const hex = (n: number) => (n >>> 0).toString(16).padStart(8, "0");
 const rsr = (sr: number, t: number) => 0x030000 | (sr << 8) | (t << 4);
 const wsr = (sr: number, t: number) => 0x130000 | (sr << 8) | (t << 4);
 const rri8 = (op: number, imm8: number, s: number, t: number) => (imm8 << 16) | (op << 12) | (s << 8) | (t << 4) | 2;
@@ -54,6 +54,7 @@ const addi4 = (t: number, s: number) => rri8(0xc, 4, s, t);
 export class XtensaOcd implements DebugTarget {
   readonly name = "ESP32-S3 (Xtensa OCD over USB-JTAG)";
   idcode = 0;
+  private tapCount = 1;
   private readonly probe = new UsbJtag();
   private readonly tap = new Tap(this.probe, IR_LENGTH);
   private breakpoints: number[] = [];
@@ -64,12 +65,15 @@ export class XtensaOcd implements DebugTarget {
     await this.probe.connect();
     await this.tap.reset();
     this.irSelected = -1;
-    await this.tap.shiftIR(IR_IDCODE);
-    this.idcode = await this.tap.shiftDR(0, 32);
-    if (this.idcode === 0 || this.idcode === 0xffffffff) {
+    const ids = await this.tap.readIdcodes();
+    if (!ids.length) {
       await this.probe.disconnect();
-      throw new Error(`No TAP answered on the JTAG chain (IDCODE ${this.idcode.toString(16)}). Is the chip running?`);
+      throw new Error("No TAP answered on the JTAG chain. Is the chip running, and is this its native USB port?");
     }
+    // The ESP32-S3 has one TAP per core (both with IDCODE 0x120034e5); the first is the PRO_CPU.
+    this.idcode = ids[0];
+    this.tapCount = ids.length;
+    this.tap.configure(ids.length, 0);
     await this.dbg(NAR_DCRSET, DCR_ENABLEOCD);
   }
 
@@ -171,7 +175,7 @@ export class XtensaOcd implements DebugTarget {
       await this.dbg(NAR_DCRCLR, DCR_DEBUGINTERRUPT);
       return;
     }
-    throw new Error("The core didn't stop");
+    throw new Error(`The core didn't stop (DSR ${hex(await this.dbgRead(NAR_DSR))}, ${this.tapCount} TAPs on the chain, IDCODE ${hex(this.idcode)})`);
   }
 
   /** Poll until the core stops (up to ~1 s). */
