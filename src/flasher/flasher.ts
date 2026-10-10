@@ -28,14 +28,23 @@ export class Flasher {
       throw new Error("Web Serial is not available. Use Chrome or Edge on HTTPS or localhost.");
     }
     const port = await this.pickPort();
-    this.transport = new Transport(port, true);
-    this.loader = new ESPLoader({
-      transport: this.transport,
+    const transport = new Transport(port, true);
+    const loader = new ESPLoader({
+      transport,
       baudrate,
       romBaudrate: 115200,
       terminal: this.terminal,
     });
-    this.chip = await this.loader.main();
+    this.transport = transport;
+    try {
+      this.chip = await loader.main();
+    } catch (e) {
+      // Not connected: a half-set-up loader has no chip, and the next flash
+      // would fail with "reading 'BOOTLOADER_FLASH_OFFSET'" instead of reconnecting.
+      await this.disconnect().catch(() => {});
+      throw e;
+    }
+    this.loader = loader;
     if (!/ESP32-S3/i.test(this.chip)) {
       this.terminal.writeLine(`Warning: expected ESP32-S3, found ${this.chip}`);
     }
