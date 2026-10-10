@@ -1,7 +1,7 @@
 // Starter code per project type. Mirrors examples/neopixel/neopixel.ino and
 // examples/blink/main.c.
 
-export const ARDUINO_SOURCE = `// Groetjes van Geert
+export const ARDUINO_SOURCE = `
 // Rainbow on a NeoPixel (WS2812) LED. The ESP32-S3-DevKitC-1 has one on board:
 // GPIO38 on v1.1 boards, GPIO48 on v1.0.
 #include <Adafruit_NeoPixel.h>

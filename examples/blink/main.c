@@ -3,7 +3,6 @@
 #include "freertos/task.h"
 #include "driver/gpio.h"
 
-// Groetjes van Geert
 // Blinks GPIO38. Wire an LED (with a resistor) to it, or change the pin here.
 #define LED_GPIO GPIO_NUM_38
 
