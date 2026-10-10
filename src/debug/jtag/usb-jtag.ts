@@ -11,6 +11,11 @@ const CMD_FLUSH = 0xa;
 /** Clocks per USB round trip; keeps the device's small IN buffer from overflowing. */
 const MAX_CLOCKS = 256;
 
+/** Receives one line per event on the wire; layers prefix their lines (USB, TAP, OCD). */
+export type Trace = (line: string) => void;
+
+const hexBytes = (b: Uint8Array) => [...b].map((x) => x.toString(16).padStart(2, "0")).join(" ");
+
 export const isWebUsbSupported = () => typeof navigator !== "undefined" && "usb" in navigator;
 
 export class UsbJtag {
@@ -18,6 +23,7 @@ export class UsbJtag {
   private iface = 0;
   private epOut = 0;
   private epIn = 0;
+  trace?: Trace;
 
   get connected(): boolean {
     return !!this.device?.opened;
@@ -46,6 +52,7 @@ export class UsbJtag {
     this.epOut = alt.alt.endpoints.find((e) => e.direction === "out")!.endpointNumber;
     this.epIn = alt.alt.endpoints.find((e) => e.direction === "in")!.endpointNumber;
     this.device = device;
+    this.trace?.(`USB opened ${this.description}: vid ${device.vendorId.toString(16)} pid ${device.productId.toString(16)}, interface ${this.iface}, OUT ep ${this.epOut}, IN ep ${this.epIn}`);
     await this.setDivider(20); // base clock 40 MHz → 2 MHz TCK
   }
 
@@ -59,6 +66,7 @@ export class UsbJtag {
   }
 
   private async setDivider(div: number): Promise<void> {
+    this.trace?.(`USB control OUT vendor SETDIV ${div}`);
     await this.dev().controlTransferOut(
       { requestType: "vendor", recipient: "interface", request: VEND_JTAG_SETDIV, value: div, index: this.iface },
     );
@@ -87,6 +95,7 @@ export class UsbJtag {
       nibbles.push(CMD_FLUSH);
       const bytes = new Uint8Array(nibbles.length / 2);
       for (let i = 0; i < bytes.length; i++) bytes[i] = (nibbles[2 * i] << 4) | nibbles[2 * i + 1];
+      this.trace?.(`USB OUT ${bytes.length}B (${end - start} clocks, ${captured} captured): ${hexBytes(bytes)}`);
       const out = await this.dev().transferOut(this.epOut, bytes);
       if (out.status !== "ok") throw new Error(`JTAG write failed (${out.status})`);
       const need = Math.ceil(captured / 8);
@@ -95,6 +104,7 @@ export class UsbJtag {
         const r = await this.dev().transferIn(this.epIn, 64);
         if (r.status !== "ok") throw new Error(`JTAG read failed (${r.status})`);
         const chunk = new Uint8Array(r.data!.buffer, r.data!.byteOffset, r.data!.byteLength);
+        this.trace?.(`USB IN  ${chunk.length}B (want ${need - have}): ${hexBytes(chunk)}`);
         got.set(chunk.subarray(0, need - have), have);
         have += chunk.length;
       }
@@ -112,6 +122,7 @@ export class UsbJtag {
 export class Tap {
   private taps = 1;
   private index = 0;
+  trace?: Trace;
 
   constructor(private readonly probe: UsbJtag, private readonly irLength: number) {}
 
@@ -119,10 +130,12 @@ export class Tap {
   configure(taps: number, index: number): void {
     this.taps = taps;
     this.index = index;
+    this.trace?.(`TAP chain: ${taps} TAPs, using #${index}`);
   }
 
   /** Five TMS=1 clocks reach Test-Logic-Reset from anywhere; then go to Run-Test/Idle. */
   async reset(): Promise<void> {
+    this.trace?.("TAP reset (TMS high x5, then idle)");
     await this.probe.clock([1, 1, 1, 1, 1, 0], [0, 0, 0, 0, 0, 0], new Array(6).fill(false));
   }
 
@@ -135,6 +148,7 @@ export class Tap {
     const cap = tms.map((_, i) => i >= 3 && i < 3 + n);
     const bits = await this.probe.clock(tms.slice(0, 3 + n).concat([1, 0]), tdi, cap);
     const ids: number[] = [];
+    this.trace?.(`TAP IDCODE scan: raw bits ${bits.join("")}`);
     for (let i = 0; i < n;) {
       if (!bits[i]) { i++; continue; } // a bypass bit (0) of a TAP without IDCODE
       let id = 0;
@@ -147,6 +161,7 @@ export class Tap {
   }
 
   async shiftIR(value: number): Promise<void> {
+    this.trace?.(`TAP IR  <- 0x${value.toString(16)} (others BYPASS)`);
     const bits: number[] = [];
     for (let t = 0; t < this.taps; t++) {
       for (let i = 0; i < this.irLength; i++) bits.push(t === this.index ? (value >>> i) & 1 : 1); // 11111 = BYPASS
@@ -155,13 +170,15 @@ export class Tap {
   }
 
   /** Shift up to 32 bits through the selected data register; returns what came out. */
-  shiftDR(value: number, length: number): Promise<number> {
+  async shiftDR(value: number, length: number): Promise<number> {
     const bits = [
       ...new Array(this.index).fill(0),
       ...Array.from({ length }, (_, i) => (i < 32 ? (value >>> i) & 1 : 0)),
       ...new Array(this.taps - 1 - this.index).fill(0),
     ];
-    return this.scanBits([1, 0, 0], bits, this.index, length);
+    const out = await this.scanBits([1, 0, 0], bits, this.index, length);
+    this.trace?.(`TAP DR${length} <- 0x${(value >>> 0).toString(16)}  -> 0x${out.toString(16)}`);
+    return out;
   }
 
   private async scanBits(prefix: number[], data: number[], captureFrom: number, captureLength: number): Promise<number> {

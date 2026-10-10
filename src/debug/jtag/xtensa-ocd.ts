@@ -7,7 +7,7 @@
  * Not verified on hardware: the constants below follow the Xtensa OCD documentation
  * and OpenOCD's xtensa driver; the ones most likely to need adjusting are named.
  */
-import { Tap, UsbJtag } from "./usb-jtag";
+import { Tap, type Trace, UsbJtag } from "./usb-jtag";
 import type { DebugTarget, Registers } from "./target";
 
 // One TAP instruction, NARSEL, serves both steps: an 8-bit scan selects the register (address << 1 | write),
@@ -51,6 +51,11 @@ const SCRATCH_ADDR = 3; // a3 holds the address, a4 the data, while reading memo
 const SCRATCH_DATA = 4;
 
 const hex = (n: number) => (n >>> 0).toString(16).padStart(8, "0");
+const regName = (nar: number) =>
+  ({ 0x40: "OCDID", 0x42: "DCRCLR", 0x43: "DCRSET", 0x44: "DSR", 0x45: "DDR", 0x47: "DIR0EXEC" } as Record<number, string>)[nar] ?? `NAR ${nar.toString(16)}`;
+const dsrFlags = (v: number) =>
+  [[DSR_EXECDONE, "ExecDone"], [DSR_EXECEXCEPTION, "ExecException"], [DSR_EXECBUSY, "ExecBusy"],
+    [DSR_EXECOVERRUN, "ExecOverrun"], [DSR_STOPPED, "Stopped"]].filter(([m]) => v & (m as number)).map(([, n]) => n).join(" ") || "none";
 const rsr = (sr: number, t: number) => 0x030000 | (sr << 8) | (t << 4);
 const wsr = (sr: number, t: number) => 0x130000 | (sr << 8) | (t << 4);
 const rri8 = (op: number, imm8: number, s: number, t: number) => (imm8 << 16) | (op << 12) | (s << 8) | (t << 4) | 2;
@@ -68,6 +73,15 @@ export class XtensaOcd implements DebugTarget {
   private saved?: { a3: number; a4: number };
   private irSelected = -1;
 
+  /** Log every layer of the conversation (OCD register access, TAP scans, raw USB transfers). */
+  setTrace(trace: Trace | undefined): void {
+    this.trace = trace;
+    this.probe.trace = trace && ((l) => trace(`    ${l}`));
+    this.tap.trace = trace && ((l) => trace(`  ${l}`));
+  }
+
+  private trace?: Trace;
+
   async connect(): Promise<void> {
     await this.probe.connect();
     await this.tap.reset();
@@ -79,10 +93,12 @@ export class XtensaOcd implements DebugTarget {
     }
     // The ESP32-S3 has one TAP per core (both with IDCODE 0x120034e5); the first is the PRO_CPU.
     this.idcode = ids[0];
+    this.trace?.(`OCD IDCODEs on chain: ${ids.map(hex).join(", ")}`);
     this.tapCount = ids.length;
     this.tap.configure(ids.length, 0);
     // Power up the debug module and tell it JTAG is in use; the debug registers don't work before this.
     const wake = PWRCTL_COREWAKEUP | PWRCTL_MEMWAKEUP | PWRCTL_DEBUGWAKEUP;
+    this.trace?.(`OCD PWRCTL <- ${hex(wake)} then ${hex(wake | PWRCTL_JTAGDEBUGUSE)}`);
     await this.select(IR_PWRCTL);
     await this.tap.shiftDR(wake, 8);
     await this.tap.shiftDR(wake | PWRCTL_JTAGDEBUGUSE, 8);
@@ -114,6 +130,7 @@ export class XtensaOcd implements DebugTarget {
   }
 
   private async dbg(reg: number, value: number): Promise<void> {
+    this.trace?.(`OCD write ${regName(reg)} = ${hex(value)}`);
     await this.select(IR_NARSEL);
     await this.tap.shiftDR((reg << 1) | 1, 8);
     await this.tap.shiftDR(value >>> 0, 32);
@@ -122,11 +139,14 @@ export class XtensaOcd implements DebugTarget {
   private async dbgRead(reg: number): Promise<number> {
     await this.select(IR_NARSEL);
     await this.tap.shiftDR(reg << 1, 8);
-    return this.tap.shiftDR(0, 32);
+    const v = await this.tap.shiftDR(0, 32);
+    this.trace?.(`OCD read  ${regName(reg)} = ${hex(v)}${reg === NAR_DSR ? ` (${dsrFlags(v)})` : ""}`);
+    return v;
   }
 
   /** Run one instruction on the halted core and wait for it to finish. */
   private async exec(insn: number): Promise<void> {
+    this.trace?.(`OCD exec instruction ${hex(insn)}`);
     await this.dbg(NAR_DIR0EXEC, insn);
     let dsr = 0;
     for (let i = 0; i < 100; i++) {

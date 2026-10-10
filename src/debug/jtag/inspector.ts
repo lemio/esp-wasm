@@ -99,6 +99,7 @@ export class JtagInspector {
   private readonly body = el("div", "jt-body");
   private readonly tabButtons = new Map<Tab, HTMLButtonElement>();
   private readonly live = el("input");
+  private readonly verbose = el("input");
 
   constructor(private readonly root: HTMLElement, private readonly host: InspectorHost, private readonly createTarget: () => DebugTarget) {
     root.classList.add("jtag-panel");
@@ -120,10 +121,15 @@ export class JtagInspector {
     liveLabel.title = "Briefly halt the CPU twice a second to refresh values while the program runs";
     liveLabel.append(this.live, " Live");
     this.live.onchange = () => void this.livePoll();
+    this.verbose.type = "checkbox";
+    this.verbose.checked = true;
+    const verboseLabel = el("label", "check");
+    verboseLabel.title = "Log every USB transfer, TAP scan and debug-register access to the Output pane (for bug reports)";
+    verboseLabel.append(this.verbose, " Verbose");
     const close = el("button", "small", "×");
     close.title = "Close the hardware inspector";
     close.onclick = () => (root.hidden = true);
-    bar.append(liveLabel, this.status, close);
+    bar.append(liveLabel, verboseLabel, this.status, close);
     const tabs = el("div", "jt-tabs");
     for (const t of TABS) {
       const b = el("button", "jt-tab", t);
@@ -188,6 +194,10 @@ export class JtagInspector {
       return;
     }
     const target = this.createTarget();
+    const start = performance.now();
+    target.setTrace((line) => {
+      if (this.verbose.checked) this.host.log(`[jtag ${((performance.now() - start) / 1000).toFixed(3)}] ${line}`, "muted");
+    });
     this.status.textContent = "Connecting…";
     await target.connect();
     this.target = target;

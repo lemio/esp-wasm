@@ -7,6 +7,8 @@ export interface Registers {
 
 export interface DebugTarget {
   readonly name: string;
+  /** Verbose log of everything exchanged with the chip. */
+  setTrace(trace: ((line: string) => void) | undefined): void;
   connect(): Promise<void>;
   disconnect(): Promise<void>;
   isHalted(): Promise<boolean>;
