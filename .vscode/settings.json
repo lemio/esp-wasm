@@ -18,5 +18,6 @@
     "node_modules",
     "toolchain/out"
   ],
-  "cmake.sourceDirectory": "/Users/geertroumen/Code/Git/esp-wasm/toolchain/sysroot-project"
+  "cmake.sourceDirectory": "/Users/geertroumen/Code/Git/esp-wasm/toolchain/sysroot-project",
+  "liveServer.settings.port": 5501
 }

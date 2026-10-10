@@ -6,7 +6,8 @@ Offline build of everything the browser downloads from `public/toolchain/`:
 |---|---|---|
 | `llvm.wasm` (44 MB, 15.6 MB gzip) | `build-llvm.sh` | clang from `espressif/llvm-project` `esp-20.1.1_20250829`, Xtensa only, wasm32-wasip1 |
 | `ld.wasm` (1.6 MB) | `build-binutils.sh` | GNU ld 2.45 (`espressif/binutils-gdb`) with the static ESP32-S3 core config |
-| `sysroot.tar.gz` | `build-sysroot.sh` | ESP-IDF + Arduino core + libraries: headers, `.a` files (debug info stripped), linker scripts, `flags/*.txt` |
+| `sysroot.tar.gz` (30 MB) | `build-sysroot.sh` | ESP-IDF + Arduino core + libraries: headers, `.a` files (debug info stripped), linker scripts, `flags/*.txt` |
+| `examples.json`, `builtin-libraries.json` | `build-all.sh` (`scripts/collect_examples.py`) | the examples panel; names of built-in libraries (so installs skip them) |
 | `bootloader.bin`, `partition-table.bin` | `build-sysroot.sh` | prebuilt from `sysroot-project/` |
 | `manifest.json` | `build-all.sh` | version and URLs; the version is the browser cache key |
 
@@ -20,7 +21,8 @@ toolchain/setup-idf.sh   # ESP-IDF v6.0.3 + esp-clang + wasi-sdk 34 → toolchai
 toolchain/build-all.sh   # ~1 h, mostly LLVM; writes public/toolchain/
 ```
 
-Everything goes under `toolchain/out/` (gitignored, about 10 GB).
+Everything goes under `toolchain/out/` (gitignored, about 15 GB). Publish the result for
+the GitHub Pages site with `toolchain/publish-release.sh` (see the main README).
 
 **Resource limits.** An unbounded LLVM build crashed a 16 GB Mac once. The scripts
 default to `JOBS=3` (LLVM) / `JOBS=4` (IDF), run at low priority, and wrap the LLVM and
