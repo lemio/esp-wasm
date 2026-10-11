@@ -45,6 +45,8 @@ export interface BuildResult {
   diagnostics: Diagnostic[];
   elfSize: number;
   durationMs: number;
+  /** The linked ELF, in development builds only (for inspecting it from the browser console). */
+  elf?: Uint8Array;
 }
 
 export type LogLevel = "info" | "error" | "ok" | "muted";

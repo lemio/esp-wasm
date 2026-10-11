@@ -128,6 +128,9 @@ function parseDebugLine(data: Uint8Array, files: string[], rows: number[][]): vo
 /** Minimal demangler for the common case: _Z4loopv → loop, _ZN3Foo3barEv → Foo::bar. */
 export function demangle(name: string): string {
   if (!name.startsWith("_Z")) return name;
+  // A static local: _ZZ <function> E <name> [_<n>], e.g. _ZZ4loopvE3hue → loop::hue.
+  const local = name.startsWith("_ZZ") && /E(\d+)([A-Za-z_]\w*?)(?:_\d+)?$/.exec(name);
+  if (local && local[2].length === Number(local[1])) return `${demangle("_Z" + name.slice(3, local.index))}::${local[2]}`;
   let i = 2;
   const parts: string[] = [];
   const nested = name[i] === "N";

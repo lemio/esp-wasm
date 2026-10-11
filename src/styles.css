@@ -130,7 +130,7 @@ button[aria-expanded="true"] { background: var(--border); }
 .console .warn { color: var(--warn); }
 
 /* Hardware inspector (src/debug/jtag/inspector.ts): a DevTools-style panel under the editor. */
-.jtag-panel { position: relative; height: var(--jt-h, 260px); flex-shrink: 0; display: flex; flex-direction: column; min-height: 0;
+.jtag-panel { position: relative; height: var(--jt-h, 340px); flex-shrink: 0; display: flex; flex-direction: column; min-height: 0;
   background: var(--panel); border-top: 1px solid var(--border); }
 .jtag-panel[hidden] { display: none; }
 .jt-drag { cursor: grab; }
@@ -144,7 +144,8 @@ button[aria-expanded="true"] { background: var(--border); }
 .editor-area[data-dock="right"] > .jtag-panel { grid-column: 2; border-left: 1px solid var(--border); }
 .editor-area[data-dock="left"] > .jtag-panel { grid-column: 1; border-right: 1px solid var(--border); }
 .editor-area[data-dock-preview] { outline: 2px dashed var(--accent); outline-offset: -2px; }
-.jt-bar { display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-bottom: 1px solid var(--border); }
+.jt-bar { display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-bottom: 1px solid var(--border); flex-wrap: wrap; }
+.jt-bar > .small:last-child { margin-left: auto; }
 .jt-status { margin-left: auto; color: #e2c08d; font: 12px ui-monospace, SFMono-Regular, Menlo, monospace;
   overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .jt-tabs { display: flex; border-bottom: 1px solid var(--border); }
@@ -175,13 +176,22 @@ button[aria-expanded="true"] { background: var(--border); }
 .jt-section { color: var(--muted); margin: 6px 0 2px; text-transform: uppercase; font-size: 11px; }
 .jt-frame { display: flex; gap: 10px; }
 .jt-frame.current { color: #ffcc66; }
-.jt-regs { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 2px 12px; }
-.jt-reg { display: flex; gap: 8px; }
+.jt-regs { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 4px 10px; }
+.jt-reg { padding: 3px 6px; border: 1px solid var(--border); border-radius: 3px; cursor: help; }
+.jt-reg.changed { border-color: rgba(255, 204, 102, .6); }
+.jt-reg-top { display: flex; gap: 8px; align-items: baseline; }
+.jt-reg-sub { color: #4ec9b0; min-height: 1.5em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.jt-reg.changed .jt-reg-sub { color: #ffcc66; }
+.jt-strip { display: flex; gap: 1px; margin-top: 2px; }
+.jt-strip span { flex: 1; height: 5px; background: var(--border); cursor: pointer; }
+.jt-strip span.moved { background: #ffcc66; }
+.jt-strip span:last-child { outline: 1px solid var(--text); }
 .jt-entry { display: flex; gap: 10px; }
 .jt-time { color: var(--muted); }
 /* Values drawn after the code that uses them (Monaco "after" decorations). */
-.jt-inline { color: #6a9955; font-style: italic; }
-.jt-inline.changed { color: #ffcc66; }
+/* Gray and italic, set apart from the code; a changed value is a little brighter. */
+.jt-inline { color: #7a7a7a; font-style: italic; }
+.jt-inline.changed { color: #a8a8a8; }
 
 .jt-resizer { position: absolute; z-index: 5; background: transparent; }
 .jt-resizer:hover { background: var(--accent); opacity: .5; }
@@ -193,3 +203,76 @@ button[aria-expanded="true"] { background: var(--border); }
 .editor-area[data-dock="right"] > .debug-bar, .editor-area[data-dock="left"] > .debug-bar { grid-row: 1; }
 .editor-area[data-dock="right"] > .tabs, .editor-area[data-dock="left"] > .tabs { grid-row: 2; }
 .editor-area[data-dock="right"] > .editor, .editor-area[data-dock="left"] > .editor { grid-row: 3; min-height: 0; }
+
+/* Inspector: plain-language status, the recording, comparisons. */
+.jt-story { padding: 6px 10px; border-bottom: 1px solid var(--border); background: #1f2a33; }
+.jt-story.past { background: #2a2433; }
+.jt-story.crash { background: #3a2222; }
+.jt-story-title { display: flex; gap: 8px; align-items: baseline; font-weight: 600; font-size: 13px; }
+.jt-story-icon { width: 1.2em; text-align: center; color: #ffcc66; }
+.jt-story-detail { color: var(--muted); font-size: 12px; margin-left: calc(1.2em + 8px); }
+.jt-story-error { color: var(--error); font-size: 12px; margin-left: calc(1.2em + 8px); }
+.jt-scrub { display: flex; align-items: center; gap: 6px; padding: 3px 10px; border-bottom: 1px solid var(--border); font-size: 12px; }
+.jt-scrub[hidden] { display: none; }
+.jt-scrub-title { color: var(--muted); text-transform: uppercase; font-size: 11px; }
+.jt-scrub-label { color: var(--muted); font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; min-width: 13em; }
+.jt-range { flex: 1; min-width: 80px; accent-color: #ffcc66; }
+.jt-group { display: inline-flex; align-items: center; gap: 2px; }
+.jt-select { margin: 0; padding: 1px 2px; font-size: 12px; }
+.dbg.subtle:not(:disabled), .check.subtle { opacity: .75; }
+.jt-help { color: var(--muted); font-family: system-ui, -apple-system, Segoe UI, sans-serif; margin: 0 0 6px; }
+.jt-name { display: flex; flex-direction: column; line-height: 1.2; }
+.jt-kind, .jt-muted { color: var(--muted); font-size: 11px; }
+.jt-before { color: var(--muted); }
+.jt-table tr.changed .jt-before { text-decoration: line-through; text-decoration-color: rgba(139, 139, 139, .5); }
+.jt-delta { color: var(--muted); }
+.jt-delta.changed { color: #ffcc66; font-weight: 600; }
+.jt-table tr.changed { background: rgba(255, 204, 102, .06); }
+.jt-table tr.current { background: rgba(14, 99, 156, .3); }
+.jt-actions { display: flex; gap: 2px; align-items: center; }
+.jt-frame { padding: 1px 0; }
+.jt-frame-name { min-width: 10em; }
+.jt-frame.caller { padding-left: 1.5em; }
+.jt-frame.caller::before { content: "↳ called from"; color: var(--muted); margin-right: 6px; }
+.jt-entry.stop .jt-step { color: #ffcc66; }
+.jt-entry.current { background: rgba(14, 99, 156, .3); }
+.jt-step { min-width: 5em; color: var(--muted); }
+/* Editor: looking back, and the lines run just before. */
+.exec-line.past { background: rgba(170, 130, 230, .22); outline: 1px solid rgba(170, 130, 230, .5); }
+.exec-glyph.past { background: #b48ee8; clip-path: polygon(30% 20%, 80% 50%, 30% 80%); }
+.exec-trail { background: rgba(226, 192, 141, .14); }
+.exec-trail.age-2 { background: rgba(226, 192, 141, .10); }
+.exec-trail.age-3 { background: rgba(226, 192, 141, .07); }
+.exec-trail.age-4 { background: rgba(226, 192, 141, .04); }
+
+/* Inspector: the chip explained (memory map, registers, pins). */
+.jt-card { border: 1px solid var(--border); border-radius: 4px; padding: 6px 10px; margin: 6px 0; font-family: system-ui, -apple-system, Segoe UI, sans-serif; max-width: 900px; }
+.jt-card p { margin: 3px 0; }
+.jt-jumps { display: flex; flex-wrap: wrap; gap: 4px; margin: 4px 0; }
+.jt-jumps button { background: transparent; border: 1px solid var(--border); color: var(--text); }
+.jt-regtable td { vertical-align: top; white-space: normal; }
+.jt-regtable .jt-kind { max-width: 380px; }
+.jt-fields { min-width: 260px; }
+.jt-field { white-space: nowrap; }
+.jt-fname { color: var(--muted); }
+.jt-note { color: var(--muted); cursor: help; text-align: center; }
+.jt-note.has-notes { color: #4fc1ff; }
+.jt-warn { color: var(--warn); }
+.jt-role { color: var(--muted); font-size: 11px; flex: 1; }
+.jt-pins tr.off td { opacity: .5; }
+.jt-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; background: #555; }
+.jt-dot.high { background: #ffcc66; }
+.jt-words td { white-space: nowrap; }
+.jt-toggle { background: transparent; color: var(--muted); padding: 0 4px 0 0; font: inherit; }
+.jt-summary td { color: var(--text); font-family: system-ui, -apple-system, Segoe UI, sans-serif; padding-left: 18px !important; white-space: normal !important; }
+.jt-member td:first-child { padding-left: 18px; }
+.jt-member .jt-kind { white-space: normal; max-width: 420px; }
+.jt-swatch { display: inline-block; width: 14px; height: 14px; border-radius: 3px; border: 1px solid var(--border); vertical-align: middle; margin: 0 4px 0 10px; }
+.jt-pinspark { width: 120px; height: 14px; vertical-align: middle; }
+.jt-pinspark rect.high { fill: #ffcc66; }
+.jt-pinspark rect.low { fill: #5a5a5a; }
+.jt-pinspark rect.unknown { fill: transparent; }
+.jt-pinspark rect:hover { fill: #4fc1ff; }
+.jt-pinspark rect.later { opacity: .3; }
+.jt-pinspark rect.viewed { stroke: #b48ee8; stroke-width: 1.2; }
+.jt-pinspark rect.stop { cursor: pointer; }

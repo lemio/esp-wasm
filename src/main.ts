@@ -179,7 +179,7 @@ const debug = new Debugger(
   },
   (command) => monitor.write(command),
   (d, loc) => {
-    debugBar.hidden = d.state === "off";
+    debugBar.hidden = d.state === "off" || d.hardware;
     const stopped = d.state === "stopped";
     dbgPause.textContent = stopped ? "Continue" : "Pause";
     for (const b of [dbgOver, dbgInto, dbgOut]) b.disabled = !stopped || !d.controllable;
@@ -188,7 +188,8 @@ const debug = new Debugger(
     dbgWhere.textContent = !d.controllable && d.state !== "off"
       ? `${where ? `▶ ${where} · ` : ""}tracing only (pause/step need an Arduino sketch)`
       : `${stopped ? "⏸ Paused at" : "▶"} ${where}`;
-    if (loc) setStatus(`${stopped ? "⏸" : "▶"} ${where}`);
+    if (d.hardware) setStatus("Inspecting over JTAG");
+    else if (loc) setStatus(`${stopped ? "⏸" : "▶"} ${where}`);
     // Show the file it stopped in.
     if (stopped && loc) {
       const f = projectFiles().find((p) => `/src/${p.path}` === loc.file);
@@ -208,10 +209,20 @@ const inspector = new JtagInspector(
     },
     breakpoints: (table) => debug.breakpointAddresses(table),
     log: (text, level) => out.log(text, level),
+    connectionChanged: (connected) => debug.setHardware(connected),
+    // After a reset from JTAG the chip's USB serial side starts over and the open port goes
+    // quiet: reopen it, as the Monitor button would.
+    chipRestarted: () => void (async () => {
+      if (!monitor.running) return;
+      await monitor.stop();
+      await monitor.start(await flasher.pickPort()).catch((e) => out.log(`Serial monitor failed to restart: ${(e as Error).message}`, "error"));
+    })(),
   },
   () => new XtensaOcd(),
 );
 debug.onBreakpointsChanged = () => inspector.breakpointsChanged();
+// For poking at the inspector from the browser's console while developing.
+if (import.meta.env.DEV) Object.assign(window, { inspector, editor, debug });
 const btnJtag = $<HTMLButtonElement>("btn-jtag");
 btnJtag.disabled = !isWebUsbSupported();
 btnJtag.onclick = () => {
@@ -243,7 +254,11 @@ chkTrace.onchange = () => storage.set("esp-wasm:trace", chkTrace.checked ? "1" :
 let builtLineTable: LineTable | undefined;
 
 const monitor = new SerialMonitor({
-  data: (text) => out.serial(traceFilter.feed(text)),
+  data: (text) => {
+    const shown = traceFilter.feed(text);
+    inspector.serialText(shown); // it explains crashes from ESP-IDF's panic message
+    out.serial(shown);
+  },
   info: (message, level = "muted") => out.log(message, level),
   portChanged: (port) => flasher.usePort(port),
   stopped: () => {
@@ -306,6 +321,7 @@ async function build(retry?: () => void): Promise<FlashPart[] | undefined> {
       { defines, trace, libraries },
     );
     builtLineTable = result.lineTable;
+    if (import.meta.env.DEV) Object.assign(window, { lastElf: result.elf });
     inspector.attach(result.lineTable);
     for (const f of files) setDiagnostics(f.model, result.diagnostics, f.path);
     const app = result.parts.find((p) => p.name === "app.bin")!;
@@ -368,6 +384,11 @@ async function build(retry?: () => void): Promise<FlashPart[] | undefined> {
 async function flash(parts: FlashPart[], lineTable?: LineTable) {
   await monitor.stop(); // it holds the port
   debug.attach(undefined);
+  // A core halted by the debugger stays halted through the reset into download mode, and the
+  // flasher then can't reach the ROM loader: let the chip run and drop JTAG first (and come
+  // back once the new program runs).
+  const hadJtag = inspector.connected;
+  await inspector.release();
   let flashed = false;
   try {
     if (!flasher.connected) {
@@ -395,6 +416,7 @@ async function flash(parts: FlashPart[], lineTable?: LineTable) {
   } catch (e) {
     out.log(`Serial monitor failed to start: ${(e as Error).message}`, "error");
   }
+  if (hadJtag) void inspector.reconnect();
 }
 
 // One click: compile → download mode → flash → reset.

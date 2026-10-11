@@ -4,7 +4,8 @@ import type { DebugInfo, TypeInfo } from "../dwarf-info";
 const MAX_DEPTH = 4;
 const MAX_ITEMS = 16;
 
-function strip(info: DebugInfo, t: number): TypeInfo | undefined {
+/** The type behind typedefs, const and volatile. */
+export function strip(info: DebugInfo, t: number): TypeInfo | undefined {
   for (let n = 0; t >= 0 && n < 16; n++) {
     const ty = info.types[t];
     if (!ty) return undefined;
@@ -63,7 +64,8 @@ export function formatTyped(info: DebugInfo, t: number, bytes: Uint8Array, depth
       if (ty.enc === 2) return int(b, false) ? "true" : "false";
       const signed = ty.enc === 5 || ty.enc === 6;
       const v = int(b, signed);
-      if ((ty.enc === 6 || ty.enc === 8) && ty.size === 1) {
+      // Only a plain char is text; uint8_t (an unsigned char) is a number like 41, not ')'.
+      if ((ty.enc === 6 || ty.enc === 8) && ty.size === 1 && ty.name === "char") {
         const c = Number(v & 0xffn);
         return c >= 32 && c < 127 ? `${v} '${String.fromCharCode(c)}'` : String(v);
       }

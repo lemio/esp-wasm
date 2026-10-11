@@ -62,6 +62,11 @@ export class Debugger {
   private readonly trailDecorations = new Map<monaco.editor.ITextModel, string[]>();
   private trailTimer?: number;
   state: DebugState = "off";
+  /**
+   * The JTAG inspector is in control: the runtime must not also stop at the breakpoints (both
+   * would act on one), and its running-line markers would contradict the inspector's.
+   */
+  hardware = false;
   /** Called when breakpoints are added or removed (the JTAG inspector mirrors them in hardware). */
   onBreakpointsChanged?: () => void;
 
@@ -114,8 +119,20 @@ export class Debugger {
     this.onChange(this, undefined);
   }
 
+  /** Hand the breakpoints (and the running line) to the JTAG inspector, or take them back. */
+  setHardware(on: boolean): void {
+    this.hardware = on;
+    if (on) {
+      this.clearExec();
+      this.clearTrail();
+    }
+    void this.sendBreakpoints();
+    this.onChange(this, on ? undefined : this.last);
+  }
+
   marker(key: string, value: string): void {
     if (!this.table) return;
+    if (this.hardware && key !== "boot" && key !== "hello") return;
     if (this.state === "off") this.state = "running"; // e.g. the monitor was restarted by hand
     if (key === "boot") {
       // The chip (re)started: running, and with no breakpoints yet.
@@ -208,7 +225,7 @@ export class Debugger {
   private async sendBreakpoints(): Promise<void> {
     if (!this.table || !this.controllable) return;
     const ranges: [number, number][] = [];
-    for (const [file, lines] of this.breakpoints) {
+    for (const [file, lines] of this.hardware ? [] : this.breakpoints) {
       for (const line of lines) ranges.push(...(rangesForLine(this.table, file, line)?.ranges ?? []));
     }
     await this.send(`\x1b_esp-wasm:b ${formatRanges(ranges.slice(0, 64))}\x1b\\`);

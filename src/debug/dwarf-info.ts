@@ -9,7 +9,12 @@ import type { ElfSection } from "../image/elf";
 export type TypeInfo =
   | { k: "base"; name: string; size: number; enc: number }
   | { k: "ptr"; size: number; to: number }
-  | { k: "struct"; name: string; size: number; union: boolean; members: { name: string; off: number; type: number }[] }
+  | {
+    k: "struct"; name: string; size: number; union: boolean;
+    members: { name: string; off: number; type: number; doc?: string }[];
+    /** The class's own doc comment, from the source (see source-docs.ts). */
+    doc?: string;
+  }
   | { k: "array"; of: number; count: number[] }
   | { k: "enum"; name: string; size: number; values: [string, number][] }
   | { k: "alias"; to: number };
@@ -20,8 +25,13 @@ export interface VarInfo {
   type: number;
   /** Fixed address (globals, statics). */
   addr?: number;
-  /** Offset from the frame base (the CFA), for locals and parameters. */
+  /** Offset from the frame base, for locals and parameters. */
   fbreg?: number;
+  /**
+   * What the function's frame base is: its stack pointer (a1 after the prologue; unoptimized
+   * Xtensa code copies it to a7 and uses that as the frame pointer) or the CFA.
+   */
+  base?: "sp" | "cfa";
   /** Code range [lo, hi) where the variable is in scope; 0, 0 for globals. */
   lo: number;
   hi: number;
@@ -36,6 +46,8 @@ export interface DebugInfo {
 }
 
 // Tags
+const TAG_INHERITANCE = 0x1c;
+const AT_DECLARATION = 0x3c;
 const TAG_ARRAY = 0x01, TAG_CLASS = 0x02, TAG_ENUM = 0x04, TAG_PARAM = 0x05, TAG_LEXBLOCK = 0x0b, TAG_MEMBER = 0x0d,
   TAG_POINTER = 0x0f, TAG_REFERENCE = 0x10, TAG_STRUCT = 0x13, TAG_TYPEDEF = 0x16, TAG_UNION = 0x17, TAG_SUBRANGE = 0x21,
   TAG_BASE = 0x24, TAG_CONST = 0x26, TAG_ENUMERATOR = 0x28, TAG_SUBPROGRAM = 0x2e, TAG_VARIABLE = 0x34, TAG_VOLATILE = 0x35,
@@ -43,8 +55,10 @@ const TAG_ARRAY = 0x01, TAG_CLASS = 0x02, TAG_ENUM = 0x04, TAG_PARAM = 0x05, TAG
 // Attributes
 const AT_LOCATION = 0x02, AT_NAME = 0x03, AT_BYTE_SIZE = 0x0b, AT_CONST_VALUE = 0x1c, AT_LOW_PC = 0x11, AT_HIGH_PC = 0x12,
   AT_ENCODING = 0x3e, AT_UPPER_BOUND = 0x2f, AT_COUNT = 0x37, AT_MEMBER_LOC = 0x38, AT_TYPE = 0x49, AT_ORIGIN = 0x31,
-  AT_SPEC = 0x47;
-const OP_ADDR = 0x03, OP_FBREG = 0x91;
+  AT_SPEC = 0x47, AT_FRAME_BASE = 0x40;
+const OP_ADDR = 0x03, OP_FBREG = 0x91, OP_CALL_FRAME_CFA = 0x9c;
+/** DW_OP_reg/breg of a1 (the stack pointer) or a7 (the frame pointer clang sets to it at -O0). */
+const SP_LIKE = new Set([0x51, 0x57, 0x71, 0x77]);
 
 type Value = number | string | Uint8Array;
 interface Die {
@@ -208,11 +222,16 @@ export function parseDebugInfo(sections: ElfSection[], bytes: Uint8Array): Debug
       case TAG_BASE: out.types[i] = { k: "base", name, size, enc: num(d, AT_ENCODING) ?? 7 }; break;
       case TAG_POINTER: case TAG_REFERENCE: out.types[i] = { k: "ptr", size: size || 4, to: typeOf(d) }; break;
       case TAG_STRUCT: case TAG_CLASS: case TAG_UNION: {
-        const members = d.children.filter((c) => c.tag === TAG_MEMBER).map((c) => {
-          const loc = c.attrs.get(AT_MEMBER_LOC);
-          const off = typeof loc === "number" ? loc : 0;
-          return { name: text(c, AT_NAME) ?? "", off, type: typeOf(c) };
-        });
+        // Data members (static ones are declarations without an offset: not part of the object),
+        // and base classes, which sit inside the object like a member.
+        const members = d.children
+          .filter((c) => (c.tag === TAG_MEMBER && !c.attrs.has(AT_DECLARATION)) || c.tag === TAG_INHERITANCE)
+          .map((c) => {
+            const loc = c.attrs.get(AT_MEMBER_LOC);
+            const off = typeof loc === "number" ? loc : 0;
+            const name = c.tag === TAG_INHERITANCE ? `(base class)` : text(c, AT_NAME) ?? "";
+            return { name, off, type: typeOf(c) };
+          });
         out.types[i] = { k: "struct", name, size, union: d.tag === TAG_UNION, members };
         break;
       }
@@ -232,6 +251,31 @@ export function parseDebugInfo(sections: ElfSection[], bytes: Uint8Array): Debug
       default: out.types[i] = { k: "alias", to: typeOf(d) };
     }
   });
+
+  // A class used in one file but defined in another (a library's class in the sketch) is only a
+  // declaration there: no size, no members. Point it at the full definition, found by name.
+  const complete = new Map<string, number>();
+  out.types.forEach((t, i) => {
+    if (t.k === "struct" && t.name && t.members.length && !complete.has(t.name)) complete.set(t.name, i);
+  });
+  out.types.forEach((t, i) => {
+    if (t.k === "struct" && t.name && !t.members.length && !t.size) {
+      const full = complete.get(t.name);
+      if (full !== undefined) out.types[i] = { k: "alias", to: full };
+    }
+  });
+  for (const t of out.types) {
+    if (t.k === "struct") for (const m of t.members) if (m.name === "(base class)") m.name = `(base ${baseName(m.type)})`;
+  }
+  function baseName(t: number): string {
+    for (let n = 0; n < 8 && t >= 0; n++) {
+      const ty = out.types[t];
+      if (ty?.k === "struct") return ty.name || "?";
+      if (ty?.k !== "alias") break;
+      t = ty.to;
+    }
+    return "?";
+  }
 
   // Variables: walk each subprogram, tracking the innermost scope range.
   const resolveName = (d: Die): string | undefined => {
@@ -257,7 +301,13 @@ export function parseDebugInfo(sections: ElfSection[], bytes: Uint8Array): Debug
     if (lo === undefined || hi === undefined) return undefined;
     return [lo, d.highIsAddr ? hi : lo + hi];
   };
-  const addVar = (d: Die, scope: [number, number], func?: { name: string; lo: number }): void => {
+  type Func = { name: string; lo: number; base?: "sp" | "cfa" };
+  const func = (d: Die, lo: number): Func => {
+    const fb = d.attrs.get(AT_FRAME_BASE);
+    const op = fb instanceof Uint8Array ? fb[0] : undefined;
+    return { name: resolveName(d) ?? "?", lo, base: op === OP_CALL_FRAME_CFA ? "cfa" : op !== undefined && SP_LIKE.has(op) ? "sp" : undefined };
+  };
+  const addVar = (d: Die, scope: [number, number], func?: Func): void => {
     const name = resolveName(d);
     if (!name) return;
     const loc = d.attrs.get(AT_LOCATION);
@@ -265,17 +315,20 @@ export function parseDebugInfo(sections: ElfSection[], bytes: Uint8Array): Debug
     if (loc instanceof Uint8Array && loc.length) {
       const r = new R(new DataView(loc.buffer, loc.byteOffset, loc.byteLength), 1);
       if (loc[0] === OP_ADDR && loc.length === 5) v.addr = r.u32();
-      else if (loc[0] === OP_FBREG) v.fbreg = r.sleb();
+      else if (loc[0] === OP_FBREG) {
+        v.fbreg = r.sleb();
+        v.base = func?.base;
+      }
     }
     out.vars.push(v);
   };
-  const walk = (d: Die, scope: [number, number], func?: { name: string; lo: number }): void => {
+  const walk = (d: Die, scope: [number, number], fn?: Func): void => {
     for (const c of d.children) {
-      if (c.tag === TAG_VARIABLE || c.tag === TAG_PARAM) addVar(c, scope, func);
-      else if (c.tag === TAG_LEXBLOCK || c.tag === TAG_INLINED) walk(c, range(c) ?? scope, func);
+      if (c.tag === TAG_VARIABLE || c.tag === TAG_PARAM) addVar(c, scope, fn);
+      else if (c.tag === TAG_LEXBLOCK || c.tag === TAG_INLINED) walk(c, range(c) ?? scope, fn);
       else if (c.tag === TAG_SUBPROGRAM) {
         const r = range(c);
-        if (r) walk(c, r, { name: resolveName(c) ?? "?", lo: r[0] });
+        if (r) walk(c, r, func(c, r[0]));
       }
     }
   };
@@ -285,11 +338,11 @@ export function parseDebugInfo(sections: ElfSection[], bytes: Uint8Array): Debug
         if (c.tag === TAG_VARIABLE) addVar(c, [0, 0]);
         else if (c.tag === TAG_SUBPROGRAM) {
           const r = range(c);
-          if (r) walk(c, r, { name: resolveName(c) ?? "?", lo: r[0] });
+          if (r) walk(c, r, func(c, r[0]));
         } else if (c.tag === 0x39 /* namespace */) {
           for (const n of c.children) {
             if (n.tag === TAG_VARIABLE) addVar(n, [0, 0]);
-            else if (n.tag === TAG_SUBPROGRAM) { const r = range(n); if (r) walk(n, r, { name: resolveName(n) ?? "?", lo: r[0] }); }
+            else if (n.tag === TAG_SUBPROGRAM) { const r = range(n); if (r) walk(n, r, func(n, r[0])); }
           }
         }
       }
