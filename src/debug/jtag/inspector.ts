@@ -1038,7 +1038,7 @@ export class JtagInspector {
           // Not called from your code: the CPU is running another task (often idle, while loop() sleeps in delay()).
           const resumeAt = caller ? caller.at + 1 : await this.whereLoopResumes(t);
           if (resumeAt === undefined) {
-            note = "The CPU is in system code that your code didn't call (another task). Set a breakpoint in your code and press Continue.";
+            note = "The CPU is running system code (another task), and it isn't clear where your code continues. Set a breakpoint in your code and press Continue.";
             reason = "it's in system code";
             return;
           }
@@ -1118,10 +1118,13 @@ export class JtagInspector {
   }
 
   /**
-   * Where Arduino's loop task continues in your code once it wakes up: the innermost return
-   * address into your code on its saved stack (just after the delay() call, typically), else
-   * the start of loop(). FreeRTOS keeps a sleeping task's stack pointer in the first word of
-   * its task control block, and the Arduino core keeps that block's address in loopTaskHandle.
+   * Where your code continues once its task wakes up, while the CPU runs another one (often the
+   * idle task, while your code waits in delay() or vTaskDelay()): the innermost return address
+   * into your code on that task's saved stack, just after the call it's waiting in. FreeRTOS keeps
+   * a waiting task's stack pointer in the first word of its task control block (TCB). Arduino's
+   * loop task is found through loopTaskHandle; any other task (ESP-IDF's app_main, tasks you
+   * created) through FreeRTOS's lists of ready, delayed and suspended tasks. Else the start of
+   * loop(), for Arduino.
    */
   private async whereLoopResumes(t: DebugTarget): Promise<number | undefined> {
     const table = this.table!;
@@ -1130,23 +1133,64 @@ export class JtagInspector {
     for (let i = 0; i < table.funcs.length; i += 3) {
       if (/^loop(\(|$)/.test(table.names[table.funcs[i + 2]])) loopStart = table.funcs[i];
     }
-    const handle = this.symbols.find((s) => s.name === "loopTaskHandle");
-    try {
-      const tcb = handle && word(await t.readMemory(handle.addr, 4));
-      if (!tcb) return loopStart;
+    const top = (await t.readPc()) & 0xc0000000;
+    const resumesAt = async (tcb: number): Promise<number | undefined> => {
       const sp = word(await t.readMemory(tcb, 4));
       const bytes = await t.readMemory(sp, 512);
-      const top = (await t.readPc()) & 0xc0000000;
       for (let i = 0; i + 4 <= bytes.length; i += 4) {
         const w = word(bytes, i);
         if (!(w >>> 30)) continue; // a windowed return address has the call size in its top bits
         const ra = ((w & 0x3fffffff) | top) >>> 0;
         if (functionAt(table, ra - 1) && locateExact(table, ra)) return ra;
       }
+      return undefined;
+    };
+    try {
+      const handle = this.symbols.find((s) => s.name === "loopTaskHandle");
+      const tcb = handle && word(await t.readMemory(handle.addr, 4));
+      if (tcb) return (await resumesAt(tcb)) ?? loopStart;
+      for (const tcb of await this.waitingTasks(t)) {
+        const ra = await resumesAt(tcb).catch(() => undefined);
+        if (ra !== undefined) return ra;
+      }
     } catch (e) {
-      this.host.log(`JTAG: couldn't read the loop task's stack: ${(e as Error).message}`, "muted");
+      this.host.log(`JTAG: couldn't read the waiting task's stack: ${(e as Error).message}`, "muted");
     }
     return loopStart;
+  }
+
+  /**
+   * The TCBs of the tasks that aren't running right now, from FreeRTOS's task lists (tasks.c).
+   * A list is { item count, pxIndex, end marker { value, pxNext, pxPrevious } }: 20 bytes, its
+   * first item at +12. An item is { value, pxNext, pxPrevious, pvOwner (the TCB), container }.
+   */
+  private async waitingTasks(t: DebugTarget): Promise<number[]> {
+    const word = (b: Uint8Array, i = 0) => new DataView(b.buffer, b.byteOffset, b.byteLength).getUint32(i, true);
+    const lists: number[] = [];
+    for (const s of this.symbols) {
+      if (/^(xDelayedTaskList[12]|xSuspendedTaskList|xPendingReadyList)$/.test(s.name)) lists.push(s.addr);
+      // One list per priority, highest last: those wake first.
+      if (s.name === "pxReadyTasksLists") for (let o = s.size - 20; o >= 0; o -= 20) lists.push(s.addr + o);
+    }
+    const running = this.symbols.find((s) => s.name === "pxCurrentTCBs" || s.name === "pxCurrentTCB");
+    const skip = new Set<number>();
+    if (running) {
+      const b = await t.readMemory(running.addr, Math.min(Math.max(running.size, 4), 8));
+      for (let i = 0; i + 4 <= b.length; i += 4) skip.add(word(b, i));
+    }
+    const tcbs: number[] = [];
+    for (const list of lists) {
+      const head = await t.readMemory(list, 20);
+      const count = word(head, 0);
+      let item = word(head, 12);
+      for (let n = 0; n < Math.min(count, 32) && item !== list + 8; n++) {
+        const it = await t.readMemory(item, 16);
+        const tcb = word(it, 12);
+        if (tcb && !skip.has(tcb) && !tcbs.includes(tcb)) tcbs.push(tcb);
+        item = word(it, 4);
+      }
+    }
+    return tcbs;
   }
 
   /** If the instruction at `from` was a call that landed at `to`, the address it returns to. */
