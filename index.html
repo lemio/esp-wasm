@@ -21,6 +21,7 @@
       <label class="check" title="Build with line tracing: while the sketch runs, the line it's executing is highlighted">
         <input type="checkbox" id="chk-trace" /> Trace
       </label>
+      <button id="btn-jtag" class="secondary" title="Hardware inspector: debug the chip over USB-JTAG (memory, variables, stack, stepping)">Inspect</button>
       <button id="btn-reset" class="secondary" title="Reset the chip and run the app (same as tapping RESET)">Reset</button>
       <button id="btn-disconnect" class="secondary" title="Release the serial port (stops the monitor), e.g. for another program" disabled>Disconnect</button>
       <!-- Single steps for troubleshooting; hidden unless the URL has ?tools. -->
@@ -51,6 +52,7 @@
           </div>
           <div id="tabs" class="tabs" role="tablist" hidden></div>
           <section id="editor" class="editor"></section>
+          <section id="jtag-panel" aria-label="Hardware inspector" hidden></section>
         </section>
       </div>
       <section class="console-pane">

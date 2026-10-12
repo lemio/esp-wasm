@@ -9,7 +9,11 @@ import { FLASH_OFFSETS } from "./image/flash-layout";
 import { Flasher, isWebSerialSupported } from "./flasher/flasher";
 import { SerialMonitor } from "./flasher/monitor";
 import type { LineTable } from "./debug/line-table";
+import { BUILDS, dbRequest } from "./libraries/db";
 import { Debugger, TraceFilter } from "./debug/trace-view";
+import { JtagInspector } from "./debug/jtag/inspector";
+import { XtensaOcd } from "./debug/jtag/xtensa-ocd";
+import { isWebUsbSupported } from "./debug/jtag/usb-jtag";
 import { Console } from "./ui/console";
 import { type Example, ExamplesPanel } from "./ui/examples";
 import { libraryFiles, listLibraries, removeLibrary } from "./libraries/store";
@@ -176,7 +180,7 @@ const debug = new Debugger(
   },
   (command) => monitor.write(command),
   (d, loc) => {
-    debugBar.hidden = d.state === "off";
+    debugBar.hidden = d.state === "off" || d.hardware;
     const stopped = d.state === "stopped";
     dbgPause.textContent = stopped ? "Continue" : "Pause";
     for (const b of [dbgOver, dbgInto, dbgOut]) b.disabled = !stopped || !d.controllable;
@@ -185,7 +189,8 @@ const debug = new Debugger(
     dbgWhere.textContent = !d.controllable && d.state !== "off"
       ? `${where ? `▶ ${where} · ` : ""}tracing only (pause/step need an Arduino sketch)`
       : `${stopped ? "⏸ Paused at" : "▶"} ${where}`;
-    if (loc) setStatus(`${stopped ? "⏸" : "▶"} ${where}`);
+    if (d.hardware) setStatus("Inspecting over JTAG");
+    else if (loc) setStatus(`${stopped ? "⏸" : "▶"} ${where}`);
     // Show the file it stopped in.
     if (stopped && loc) {
       const f = projectFiles().find((p) => `/src/${p.path}` === loc.file);
@@ -193,6 +198,38 @@ const debug = new Debugger(
     }
   },
 );
+// Hardware inspector: debugging over the chip's USB-JTAG, drawn into the editor.
+const inspector = new JtagInspector(
+  $("jtag-panel"),
+  {
+    editor,
+    sources: () => projectFiles().map((f) => ({ file: `/src/${f.path}`, model: f.model })),
+    showFile: (file) => {
+      const f = projectFiles().find((p) => `/src/${p.path}` === file);
+      if (f && editor.getModel() !== f.model) show(f);
+    },
+    breakpoints: (table) => debug.breakpointAddresses(table),
+    log: (text, level) => out.log(text, level),
+    connectionChanged: (connected) => debug.setHardware(connected),
+    // After a reset from JTAG the chip's USB serial side starts over and the open port goes
+    // quiet: reopen it, as the Monitor button would.
+    chipRestarted: () => void (async () => {
+      if (!monitor.running) return;
+      await monitor.stop();
+      await monitor.start(await flasher.pickPort()).catch((e) => out.log(`Serial monitor failed to restart: ${(e as Error).message}`, "error"));
+    })(),
+  },
+  () => new XtensaOcd(),
+);
+debug.onBreakpointsChanged = () => inspector.breakpointsChanged();
+// For poking at the inspector from the browser's console while developing.
+if (import.meta.env.DEV) Object.assign(window, { inspector, editor, debug });
+const btnJtag = $<HTMLButtonElement>("btn-jtag");
+btnJtag.disabled = !isWebUsbSupported();
+btnJtag.onclick = () => {
+  if (inspector.visible) inspector.hide();
+  else inspector.show();
+};
 const traceFilter = new TraceFilter((key, value) => debug.marker(key, value));
 const run = (action: () => Promise<void>) => () => void action().catch((e) => out.log(`Debugger: ${(e as Error).message}`, "error"));
 dbgPause.onclick = run(() => (debug.state === "stopped" ? debug.continue() : debug.pause()));
@@ -217,7 +254,11 @@ chkTrace.onchange = () => storage.set("esp-wasm:trace", chkTrace.checked ? "1" :
 let builtLineTable: LineTable | undefined;
 
 const monitor = new SerialMonitor({
-  data: (text) => out.serial(traceFilter.feed(text)),
+  data: (text) => {
+    const shown = traceFilter.feed(text);
+    inspector.serialText(shown); // it explains crashes from ESP-IDF's panic message
+    out.serial(shown);
+  },
   info: (message, level = "muted") => out.log(message, level),
   portChanged: (port) => flasher.usePort(port),
   stopped: () => {
@@ -263,6 +304,37 @@ if (!isWebSerialSupported()) {
  * Compile the project (with any installed libraries). If a header is missing,
  * suggest libraries that provide it; `retry` repeats the action after one is installed.
  */
+/** A fingerprint of the project's sources (and mode): a saved build is only reused for exactly these. */
+function sourcesKey(): string {
+  let h = 0x811c9dc5;
+  for (const ch of `${mode}\0${projectFiles().map((f) => `${f.path}\0${f.model.getValue()}`).join("\0")}`) {
+    h = Math.imul(h ^ ch.charCodeAt(0), 0x01000193);
+  }
+  return (h >>> 0).toString(16);
+}
+
+interface SavedBuild {
+  sources: string;
+  lineTable?: LineTable;
+  elf?: Uint8Array;
+  app?: FlashPart;
+  instrumented: boolean;
+}
+
+/** Keep the build's debug info, so a page reload doesn't leave the inspector without it. */
+function saveBuild(saved: SavedBuild): void {
+  void dbRequest(BUILDS, "readwrite", (s) => s.put(saved, "last")).catch(() => { /* best effort */ });
+}
+
+/** After a reload: the last build again, if the sources are still the ones it was made from. */
+async function restoreBuild(): Promise<void> {
+  const saved = await dbRequest<SavedBuild | undefined>(BUILDS, "readonly", (s) => s.get("last")).catch(() => undefined);
+  if (!saved || saved.sources !== sourcesKey() || !saved.lineTable) return;
+  builtLineTable = saved.instrumented ? saved.lineTable : undefined;
+  if (saved.instrumented) debug.attach(saved.lineTable);
+  inspector.attach(saved.lineTable, saved.elf, saved.app);
+}
+
 async function build(retry?: () => void): Promise<FlashPart[] | undefined> {
   setStatus("Building…");
   const files = projectFiles();
@@ -272,17 +344,23 @@ async function build(retry?: () => void): Promise<FlashPart[] | undefined> {
   const defines = mode === "arduino" ? [`ARDUINO_USB_CDC_ON_BOOT=${flasher.usesNativeUsb ? 1 : 0}`] : [];
   try {
     const trace = chkTrace.checked;
+    // With the inspector open, the code is built for it: debug info, no trace hooks.
+    const debugInfo = inspector.visible;
     const libraries = await Promise.all((await listLibraries()).map(async (lib) => ({
       id: lib.id, version: lib.version, includeDirs: lib.includeDirs, files: await libraryFiles(lib),
     })));
     const result = await compiler.build(
       files.map((f) => ({ path: f.path, content: f.model.getValue() })),
-      { defines, trace, libraries },
+      { defines, trace, debugInfo, libraries },
     );
-    builtLineTable = result.lineTable;
+    // The serial tracer only for builds that carry its hooks; the inspector for any with debug info.
+    builtLineTable = result.instrumented ? result.lineTable : undefined;
+    if (import.meta.env.DEV) Object.assign(window, { lastElf: result.elf });
+    inspector.attach(result.lineTable, result.elf, result.parts.find((p) => p.name === "app.bin"));
+    saveBuild({ sources: sourcesKey(), lineTable: result.lineTable, elf: result.elf, app: result.parts.find((p) => p.name === "app.bin"), instrumented: result.instrumented });
     for (const f of files) setDiagnostics(f.model, result.diagnostics, f.path);
     const app = result.parts.find((p) => p.name === "app.bin")!;
-    out.log(`Build OK in ${(result.durationMs / 1000).toFixed(1)}s, app.bin ${app.data.length} bytes${trace ? " (with line tracing)" : ""}`, "ok");
+    out.log(`Build OK in ${(result.durationMs / 1000).toFixed(1)}s, app.bin ${app.data.length} bytes${result.instrumented ? " (with line tracing)" : debugInfo ? " (with debug info for the inspector)" : ""}`, "ok");
     setStatus("Build OK");
     return result.parts;
   } catch (e) {
@@ -341,6 +419,11 @@ async function build(retry?: () => void): Promise<FlashPart[] | undefined> {
 async function flash(parts: FlashPart[], lineTable?: LineTable) {
   await monitor.stop(); // it holds the port
   debug.attach(undefined);
+  // A core halted by the debugger stays halted through the reset into download mode, and the
+  // flasher then can't reach the ROM loader: let the chip run and drop JTAG first (and come
+  // back once the new program runs).
+  const hadJtag = inspector.connected;
+  await inspector.release();
   let flashed = false;
   try {
     if (!flasher.connected) {
@@ -368,6 +451,7 @@ async function flash(parts: FlashPart[], lineTable?: LineTable) {
   } catch (e) {
     out.log(`Serial monitor failed to start: ${(e as Error).message}`, "error");
   }
+  if (hadJtag) void inspector.reconnect();
 }
 
 // One click: compile → download mode → flash → reset.
@@ -439,16 +523,21 @@ btnDisconnect.onclick = () =>
 btnReset.onclick = () =>
   signalCommand("Reset", () => (monitor.running ? monitor.reset() : flasher.reset()), "Chip reset, app running");
 
+/** Whether the serial monitor was on, so a page reload turns it back on. */
+const MONITOR_KEY = "esp-wasm:monitor";
+
 btnMonitor.onclick = () =>
   exclusive(async () => {
     if (monitor.running) {
       await monitor.stop();
+      storage.set(MONITOR_KEY, "");
       out.log("Serial monitor stopped.", "muted");
       return;
     }
     try {
       await flasher.disconnect(); // the monitor needs the port to itself
       await monitor.start(await flasher.pickPort());
+      storage.set(MONITOR_KEY, "1");
     } catch (e) {
       out.log(`Serial monitor failed to start: ${(e as Error).message}`, "error");
     }
@@ -474,3 +563,15 @@ $("btn-clear").onclick = () => out.clear();
 
 out.log("esp-wasm: ESP32-S3 compiler and flasher that runs entirely in your browser.", "muted");
 refreshButtons();
+// After a reload: give the inspector the last build back (if the sources haven't changed since).
+void restoreBuild();
+// After a reload: the serial monitor was on, so turn it back on, if the port can be had without
+// asking (the one this page was allowed before). Opening it leaves the chip running.
+if (storage.get(MONITOR_KEY) && "serial" in navigator) {
+  void navigator.serial.getPorts().then((ports) => {
+    if (ports.length !== 1 || monitor.running) return;
+    return exclusive(async () => {
+      if (!monitor.running) await monitor.start(await flasher.pickPort());
+    });
+  }).catch((e) => out.log(`Serial monitor failed to start: ${(e as Error).message}`, "error"));
+}

@@ -4,7 +4,7 @@
     "module": "ESNext",
     "moduleResolution": "bundler",
     "lib": ["ES2022", "DOM", "DOM.Iterable", "WebWorker"],
-    "types": ["vite/client", "w3c-web-serial"],
+    "types": ["vite/client", "w3c-web-serial", "w3c-web-usb"],
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,

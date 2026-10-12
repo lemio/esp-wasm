@@ -48,6 +48,8 @@ export class TraceFilter {
 export type DebugState = "off" | "running" | "stopped";
 
 /** A session with a Trace build on the chip. */
+const BREAKPOINTS_KEY = "esp-wasm:breakpoints";
+
 export class Debugger {
   private table?: LineTable;
   private canControl = false; // the runtime takes commands (Arduino sketches)
@@ -62,6 +64,13 @@ export class Debugger {
   private readonly trailDecorations = new Map<monaco.editor.ITextModel, string[]>();
   private trailTimer?: number;
   state: DebugState = "off";
+  /**
+   * The JTAG inspector is in control: the runtime must not also stop at the breakpoints (both
+   * would act on one), and its running-line markers would contradict the inspector's.
+   */
+  hardware = false;
+  /** Called when breakpoints are added or removed (the JTAG inspector mirrors them in hardware). */
+  onBreakpointsChanged?: () => void;
 
   constructor(
     private readonly editor: monaco.editor.IStandaloneCodeEditor,
@@ -83,6 +92,12 @@ export class Debugger {
       if (file && t.position) this.toggleBreakpoint(file, t.position.lineNumber);
     });
     editor.onDidChangeModel(() => this.renderBreakpoints());
+    // Breakpoints survive a page reload (the chip may still have them programmed).
+    try {
+      const saved = JSON.parse(localStorage.getItem(BREAKPOINTS_KEY) ?? "{}") as Record<string, number[]>;
+      for (const [file, lines] of Object.entries(saved)) if (lines.length) this.breakpoints.set(file, new Set(lines));
+    } catch { /* nothing saved */ }
+    this.renderBreakpoints();
   }
 
   /** Can pause/step/breakpoints be used right now? */
@@ -112,8 +127,20 @@ export class Debugger {
     this.onChange(this, undefined);
   }
 
+  /** Hand the breakpoints (and the running line) to the JTAG inspector, or take them back. */
+  setHardware(on: boolean): void {
+    this.hardware = on;
+    if (on) {
+      this.clearExec();
+      this.clearTrail();
+    }
+    void this.sendBreakpoints();
+    this.onChange(this, on ? undefined : this.last);
+  }
+
   marker(key: string, value: string): void {
     if (!this.table) return;
+    if (this.hardware && key !== "boot" && key !== "hello") return;
     if (this.state === "off") this.state = "running"; // e.g. the monitor was restarted by hand
     if (key === "boot") {
       // The chip (re)started: running, and with no breakpoints yet.
@@ -188,12 +215,28 @@ export class Debugger {
     else set.add(snapped);
     this.renderBreakpoints();
     void this.sendBreakpoints();
+    this.onBreakpointsChanged?.();
+    try {
+      localStorage.setItem(BREAKPOINTS_KEY, JSON.stringify(Object.fromEntries([...this.breakpoints].map(([f, l]) => [f, [...l]]))));
+    } catch { /* storage unavailable */ }
+  }
+
+  /** Start address of the code of every breakpoint line, for hardware breakpoints. */
+  breakpointAddresses(table: LineTable): number[] {
+    const addrs: number[] = [];
+    for (const [file, lines] of this.breakpoints) {
+      for (const line of lines) {
+        const r = rangesForLine(table, file, line)?.ranges[0];
+        if (r) addrs.push(r[0]);
+      }
+    }
+    return addrs;
   }
 
   private async sendBreakpoints(): Promise<void> {
     if (!this.table || !this.controllable) return;
     const ranges: [number, number][] = [];
-    for (const [file, lines] of this.breakpoints) {
+    for (const [file, lines] of this.hardware ? [] : this.breakpoints) {
       for (const line of lines) ranges.push(...(rangesForLine(this.table, file, line)?.ranges ?? []));
     }
     await this.send(`\x1b_esp-wasm:b ${formatRanges(ranges.slice(0, 64))}\x1b\\`);

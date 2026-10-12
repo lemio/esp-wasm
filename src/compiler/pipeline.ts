@@ -31,10 +31,21 @@ async function storeObject(key: string, data: Uint8Array): Promise<void> {
 const libRoot = (lib: BuildLibrary) => `/libs/${lib.id.replace(/[^A-Za-z0-9_.-]/g, "_")}`;
 const LIB_SOURCE = /\.(c|cc|cpp|cxx|S)$/;
 
-/** Trace builds: instrument basic blocks, keep line tables, and optimize lightly so lines map cleanly. */
-const TRACE_FLAGS = ["-fsanitize-coverage=trace-pc", "-Og", "-gdwarf-4", "-gline-tables-only"];
+/**
+ * Trace builds: instrument basic blocks and keep full debug info, unoptimized: every line maps
+ * to its own code and every local variable has a stack slot the JTAG inspector can read
+ * (optimized code keeps most of them in registers only). Only the sketch's own files get this.
+ */
+// -fstandalone-debug: the full layout of every class the sketch uses, also of library classes
+// (clang otherwise only declares a class whose code is in another file, and the built-in
+// libraries are precompiled without debug info).
+const DEBUG_FLAGS = ["-O0", "-gdwarf-4", "-fstandalone-debug"];
+const TRACE_FLAGS = ["-fsanitize-coverage=trace-pc", ...DEBUG_FLAGS];
 const TRACE_RUNTIME = "__esp_wasm_trace.cpp";
+/** Libraries in Trace builds: debug info (types, variables) without changing how they're optimized. */
+const LIB_DEBUG_FLAGS = ["-gdwarf-4"];
 import { buildLineTable } from "../debug/line-table";
+import { attachDocs } from "../debug/source-docs";
 import { addStatementHooks } from "../debug/statement-hooks";
 import traceRuntime from "../debug/trace-runtime.cpp?raw";
 import { parseElf } from "../image/elf";
@@ -51,6 +62,34 @@ import { runWasi } from "./wasi-runner";
  *   flags/link.txt    linker args; @OBJECTS@ and @OUTPUT@ are substituted
  * One argument per line; blank lines and lines starting with # are ignored.
  */
+/**
+ * The headers the sketch's files #include directly, found on the include path (`-I dir`,
+ * `-isystem dir`, `-idirafter…`). Arduino.h is left out: it pulls in the whole core.
+ */
+function includedHeaders(vfs: Toolchain["vfs"], sources: SourceFile[], args: string[]): SourceFile[] {
+  const dirs: string[] = [];
+  for (let i = 0; i < args.length; i++) {
+    if ((args[i] === "-I" || args[i] === "-isystem") && args[i + 1]) dirs.push(args[++i]);
+    else if (/^-(I|isystem|idirafter)./.test(args[i])) dirs.push(args[i].replace(/^-(I|isystem|idirafter)/, ""));
+  }
+  const found = new Map<string, SourceFile>();
+  for (const s of sources) {
+    for (const m of s.content.matchAll(/#\s*include\s*[<"]([^>"]+)[>"]/g)) {
+      const name = m[1];
+      if (found.has(name) || name === "Arduino.h") continue;
+      for (const dir of dirs) {
+        const path = `${dir}/${name}`;
+        const content = vfs.readText(path.replace(/^\//, ""));
+        if (content !== undefined) {
+          found.set(name, { path, content });
+          break;
+        }
+      }
+    }
+  }
+  return [...found.values()];
+}
+
 function readArgs(tc: Toolchain, name: string): string[] {
   const text = tc.vfs.readText(`sysroot/flags/${name}`);
   if (text === undefined) throw new Error(`sysroot is missing flags/${name}`);
@@ -86,8 +125,11 @@ export async function build(
   tc: Toolchain,
   userSources: SourceFile[],
   log: Log,
-  { defines = [], trace = false, libraries = [] }: BuildOptions = {},
+  { defines = [], trace: traceRequested = false, debugInfo = false, libraries = [] }: BuildOptions = {},
 ): Promise<BuildResult> {
+  // `trace` from here on: instrumented. With debugInfo the code is left as written.
+  const trace = traceRequested && !debugInfo;
+  const debug = trace || debugInfo;
   // The trace runtime is compiled as-is (not instrumented) next to the user's code.
   const sources = trace ? [...userSources, { path: TRACE_RUNTIME, content: traceRuntime }] : userSources;
   const start = performance.now();
@@ -145,7 +187,7 @@ export async function build(
       ...langFlags,
       ...defines.map((d) => `-D${d}`),
       ...libIncludes,
-      ...(trace && src.path !== TRACE_RUNTIME ? TRACE_FLAGS : []),
+      ...(trace && src.path !== TRACE_RUNTIME ? TRACE_FLAGS : debugInfo ? DEBUG_FLAGS : []),
       // The runtime takes debugger commands over Serial in Arduino sketches.
       ...(trace && src.path === TRACE_RUNTIME && isSketch ? ["-DESP_WASM_ARDUINO=1"] : []),
       "-fno-color-diagnostics",
@@ -162,7 +204,10 @@ export async function build(
   // 1b. Installed libraries, linked after the user's objects. Each object is
   // compiled once: cached in memory and in the browser database, keyed by
   // library version, toolchain version, file and flags.
-  const flagsHash = hash([tc.manifest.version, ...defines, ...libIncludes].join(" "));
+  // Trace builds give libraries debug info too (it doesn't change their code): the inspector then
+  // knows the layout of their classes, like the Adafruit_NeoPixel object a sketch declares.
+  const libDebug = debug ? LIB_DEBUG_FLAGS : [];
+  const flagsHash = hash([tc.manifest.version, ...defines, ...libIncludes, ...libDebug].join(" "));
   for (const lib of libraries) {
     const sources = lib.files.filter((x) => LIB_SOURCE.test(x.path));
     let compiled = 0;
@@ -181,6 +226,7 @@ export async function build(
           ...(isC ? cflags : [...cxxflags, "-Wno-c++11-narrowing"]),
           ...defines.map((d) => `-D${d}`),
           ...libIncludes,
+          ...libDebug,
           "-w", // third-party code: don't flood the output with its warnings
           "-fno-color-diagnostics",
           "-c", `${libRoot(lib)}/${f.path}`,
@@ -214,11 +260,19 @@ export async function build(
   const elf = vfs.readFile(elfPath);
   if (!elf) throw new BuildError("Linker produced no output");
   const app = await elfToImage(elf, tc.manifest.image);
-  const lineTable = trace
+  const lineTable = debug
     ? buildLineTable(parseElf(elf).sections, elf, (f) => f.startsWith("/src/") && !f.endsWith(TRACE_RUNTIME))
     : undefined;
+  // What each class member is for, from the comments in the sketch's and the libraries' source
+  // (the headers the sketch includes, also the built-in libraries' in the sysroot).
+  if (lineTable?.info) {
+    const headers = includedHeaders(vfs, userSources, [...common, ...cxxflags, ...libIncludes]);
+    attachDocs(lineTable.info, [...userSources, ...headers, ...libraries.flatMap((l) => l.files)]);
+  }
 
   return {
+    elf,
+    instrumented: trace,
     parts: [
       { name: "bootloader.bin", address: FLASH_OFFSETS.bootloader, data: tc.bootloader },
       { name: "partition-table.bin", address: FLASH_OFFSETS.partitionTable, data: tc.partitionTable },
