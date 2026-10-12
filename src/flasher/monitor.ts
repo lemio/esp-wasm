@@ -83,8 +83,10 @@ export class SerialMonitor {
   private async open(port: SerialPort): Promise<void> {
     await port.open({ baudRate: MONITOR_BAUD });
     // Opening can assert DTR/RTS. Release both so the auto-reset circuit
-    // (or the native USB peripheral) leaves the chip running.
-    await port.setSignals({ dataTerminalReady: false, requestToSend: false });
+    // (or the native USB peripheral) leaves the chip running. RTS first: RTS high
+    // with DTR low, even for a moment in between, is what resets the chip.
+    await port.setSignals({ requestToSend: false });
+    await port.setSignals({ dataTerminalReady: false });
     this.port = port;
   }
 

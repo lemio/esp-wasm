@@ -276,3 +276,71 @@ button[aria-expanded="true"] { background: var(--border); }
 .jt-pinspark rect.later { opacity: .3; }
 .jt-pinspark rect.viewed { stroke: #b48ee8; stroke-width: 1.2; }
 .jt-pinspark rect.stop { cursor: pointer; }
+/* Inspector: the Program view. */
+.jt-filemap { display: flex; gap: 2px; height: 26px; margin: 6px 0; }
+.jt-seg { position: relative; min-width: 14px; border-radius: 3px; background: #3a4a5a; display: flex; align-items: center; justify-content: center; font-size: 10px; color: var(--text); cursor: help; }
+.jt-seg.flash { background: #2f5a3f; }
+.jt-seg.flash.code { background: #3f6a2f; }
+.jt-seg.ram { background: #4a3a5a; }
+.jt-seg.ram.code { background: #5a3a4a; }
+.jt-seg-mark { position: absolute; top: -3px; bottom: -3px; width: 3px; margin-left: -1px; background: #ffcc66; border-radius: 1px; }
+.jt-seg-mark.shown { background: #4fc1ff; }
+.jt-asm td { white-space: nowrap; }
+.jt-asm td.jt-asm-explain { white-space: normal; color: var(--muted); font-family: system-ui, -apple-system, Segoe UI, sans-serif; min-width: 280px; }
+.jt-asm tr:hover td { background: rgba(79, 193, 255, .12); }
+.jt-asm-mn { color: #c586c0; }
+.jt-asm-src td { color: #6a9955; padding-top: 6px !important; font-style: italic; }
+.jt-asm-source { background: rgba(79, 193, 255, .2); }
+/* Tables that update while you read them: fixed columns, so nothing shifts when values change. */
+.jt-fixed { table-layout: fixed; }
+.jt-fixed td { overflow: hidden; text-overflow: ellipsis; }
+.jt-vars th:nth-child(1) { width: 24%; } .jt-vars th:nth-child(2) { width: 30%; } .jt-vars th:nth-child(3) { width: 18%; }
+.jt-vars th:nth-child(4) { width: 8%; } .jt-vars th:nth-child(5) { width: 96px; } .jt-vars th:nth-child(6) { width: 150px; }
+.jt-vars td.jt-name, .jt-vars .jt-summary td, .jt-vars .jt-member td { white-space: normal; }
+.jt-pins th:nth-child(1) { width: 44px; } .jt-pins th:nth-child(2) { width: 30%; } .jt-pins th:nth-child(3) { width: 132px; }
+.jt-pins th:nth-child(4) { width: 22%; } .jt-pins th:nth-child(5) { width: 70px; }
+.jt-pins td:last-child { white-space: normal; }
+.jt-regtable th:nth-child(1) { width: 34%; } .jt-regtable th:nth-child(2) { width: 100px; } .jt-regtable th:nth-child(4) { width: 28px; }
+.jt-wordtable th:nth-child(1) { width: 90px; } .jt-wordtable th:nth-child(2) { width: 110px; } .jt-wordtable th:nth-child(3) { width: 110px; }
+.jt-wordtable td { white-space: normal; }
+.jt-body { font-variant-numeric: tabular-nums; }
+.jt-search { min-width: 420px; flex: 1; max-width: 640px; }
+.jt-search-results { display: flex; flex-direction: column; max-height: 240px; overflow: auto; margin: 4px 0; border: 1px solid var(--border); border-radius: 3px; }
+.jt-search-results .jt-result { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.jt-jumps button.active, .jt-result.active { border-color: #ffcc66; color: #ffcc66; background: rgba(255, 204, 102, .12); }
+.jt-asm-head { text-transform: none; font-size: 12px; color: var(--text); }
+.jt-search-count { color: var(--muted); padding: 2px 6px; font-family: system-ui, -apple-system, Segoe UI, sans-serif; }
+.jt-asm-note { color: var(--text); margin-top: 2px; }
+/* Docked to the side, the panel is narrow: icons only in its toolbar (each button's title explains it). */
+.jt-bar .short { display: none; }
+.editor-area[data-dock="right"] .jt-bar .lbl, .editor-area[data-dock="left"] .jt-bar .lbl { display: none; }
+.editor-area[data-dock="right"] .jt-bar .short, .editor-area[data-dock="left"] .jt-bar .short { display: inline; }
+.editor-area[data-dock="right"] .jt-bar .dbg, .editor-area[data-dock="left"] .jt-bar .dbg { padding: 2px 7px; min-width: 28px; font-size: 14px; }
+.editor-area[data-dock="right"] .jt-bar .jt-select, .editor-area[data-dock="left"] .jt-bar .jt-select { max-width: 92px; }
+.jt-bar .ic { display: inline-block; min-width: 1em; text-align: center; }
+/* Docked to the side: tabs on one line (scrolling), the recording bar may wrap, help text folded to two lines. */
+.editor-area[data-dock="right"] .jt-tabs, .editor-area[data-dock="left"] .jt-tabs { overflow-x: auto; white-space: nowrap; scrollbar-width: thin; }
+.editor-area[data-dock="right"] .jt-tab, .editor-area[data-dock="left"] .jt-tab { flex-shrink: 0; padding: 4px 9px; }
+.editor-area[data-dock="right"] .jt-scrub, .editor-area[data-dock="left"] .jt-scrub { flex-wrap: wrap; }
+.editor-area[data-dock="right"] .jt-help:not(.open), .editor-area[data-dock="left"] .jt-help:not(.open) {
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; cursor: pointer; }
+.jt-help { cursor: pointer; }
+/* Docked to the side: the explanation matters more than the file offset and raw bytes (both in the row's tooltip). */
+.editor-area[data-dock="right"] .jt-asm tr > :nth-child(2), .editor-area[data-dock="right"] .jt-asm tr > :nth-child(3),
+.editor-area[data-dock="left"] .jt-asm tr > :nth-child(2), .editor-area[data-dock="left"] .jt-asm tr > :nth-child(3) { display: none; }
+.editor-area[data-dock="right"] .jt-asm td.jt-asm-explain, .editor-area[data-dock="left"] .jt-asm td.jt-asm-explain { min-width: 160px; }
+.editor-area[data-dock="right"] .jt-asm-src td, .editor-area[data-dock="left"] .jt-asm-src td { white-space: normal; }
+/* Docked to the side: each instruction as a small block — address and instruction, the explanation underneath. */
+.editor-area[data-dock="right"] .jt-asm, .editor-area[data-dock="left"] .jt-asm { display: block; }
+.editor-area[data-dock="right"] .jt-asm tr, .editor-area[data-dock="left"] .jt-asm tr {
+  display: grid; grid-template-columns: 82px minmax(0, 1fr); column-gap: 6px; padding: 2px 0; border-bottom: 1px solid rgba(255, 255, 255, .04); }
+.editor-area[data-dock="right"] .jt-asm tr:first-child, .editor-area[data-dock="left"] .jt-asm tr:first-child { display: none; }
+.editor-area[data-dock="right"] .jt-asm td, .editor-area[data-dock="left"] .jt-asm td { white-space: normal; overflow-wrap: anywhere; padding: 0 !important; }
+.editor-area[data-dock="right"] .jt-asm td.jt-asm-explain, .editor-area[data-dock="left"] .jt-asm td.jt-asm-explain { grid-column: 2; min-width: 0; }
+.editor-area[data-dock="right"] .jt-asm-src td, .editor-area[data-dock="left"] .jt-asm-src td { grid-column: 1 / -1; padding-top: 6px !important; }
+/* Next to run vs just ran. */
+.exec-ran { background: rgba(137, 209, 133, .10); }
+.exec-ran-glyph::before { content: "✓"; color: #89d185; font-size: 12px; margin-left: 4px; }
+.jt-asm tr.just-ran td { background: rgba(137, 209, 133, .08); }
+.jt-asm tr.current td { background: rgba(255, 204, 102, .14); }
+.jt-asm-regs { margin-top: 2px; color: #9cdcfe; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; }

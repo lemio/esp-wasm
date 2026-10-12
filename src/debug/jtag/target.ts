@@ -24,6 +24,8 @@ export interface DebugTarget {
   /** The core that register reads and steps act on. */
   readonly core: number;
   selectCore(i: number): void;
+  /** The cores that are stopped (registers can only be read from those). */
+  readonly haltedCores: number[];
   /** The core that stopped first by itself (breakpoint, crash) in the latest stop, if it wasn't a pause. */
   readonly stoppedCore?: number;
   isHalted(): Promise<boolean>;

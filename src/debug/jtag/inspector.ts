@@ -18,12 +18,15 @@ import type { VarInfo } from "../dwarf-info";
 import { formatTyped, strip, typeName, typeSize } from "./format";
 import { pointeeLength, summarize, type Summary } from "./library-views";
 import type { TypeInfo } from "../dwarf-info";
+import { type Program, codeAt, fileOffsetOf, funcAt, loadProgram, wordAt } from "./program";
+import { type Insn, disassemble } from "./xtensa-disasm";
+import { morphChildren } from "./morph";
 
 type StructType = Extract<TypeInfo, { k: "struct" }>;
 type Member = StructType["members"][number];
 import {
   type Peripheral, GPIOS, accessMeaning, cpuHz, decodeRegister, loadSoc, peripheralAt, pinNote, readSideEffect,
-  regionAt, registerAt, registerNotes, safeToRead, signalPeripheral, soc,
+  REGIONS, regionAt, registerAt, registerNotes, safeToRead, signalPeripheral, soc,
 } from "./soc";
 import type { DebugTarget, Registers, StopCause } from "./target";
 
@@ -83,6 +86,8 @@ interface CpuState {
   calls?: number[];
   /** Watched values by watch key. */
   values: Map<string, Uint8Array>;
+  /** It came from a step out of the stop before (so that stop's line is the one that just ran). */
+  stepped?: boolean;
 }
 
 interface TimelineEntry {
@@ -126,8 +131,34 @@ const STEP_TIME_LIMIT_MS = 15000;
 const POLL_FAILURES = 5;
 /** Editor lines run just before the current one, faded by age. */
 const TRAIL = 4;
-const TABS = ["Variables", "Call stack", "Pins", "Registers", "Memory", "History"] as const;
+const TABS = ["Variables", "Call stack", "Pins", "Program", "Registers", "Memory", "History"] as const;
 const DRIVE_LABEL = ["~5 mA", "~10 mA", "~20 mA", "~40 mA"];
+
+/** What the inspector remembers between visits (localStorage), so a reload doesn't lose the place. */
+const PREFS_KEY = "esp-wasm:inspector";
+interface Prefs {
+  open?: boolean;
+  dock?: string;
+  h?: string;
+  w?: string;
+  tab?: Tab;
+  live?: boolean;
+  log?: boolean;
+  autoMode?: string;
+  autoSpeed?: string;
+  connected?: boolean;
+}
+/** Search results shown at once in the Memory tab. */
+const SEARCH_SHOWN = 30;
+
+/** A suggestion or search result of the Memory tab. */
+interface MemoryPlace {
+  label: string;
+  kind: string;
+  detail: string;
+  addr?: number;
+  go: () => void;
+}
 /** GPIO_OUT, GPIO_OUT1, GPIO_ENABLE, GPIO_ENABLE1, GPIO_IN, GPIO_IN1: every pin's level in six words. */
 const PIN_LEVEL_REGS = [0x60004004, 0x60004010, 0x60004020, 0x6000402c, 0x6000403c, 0x60004040];
 const SYSCLK_CONF = 0x600c0060; // SYSTEM_SYSCLK_CONF_REG: the CPU clock's source
@@ -153,6 +184,7 @@ const TAB_HELP: Record<Tab, string> = {
   "Variables": "The values your program is working with. “Before” is the value at the previous stop, so you can see what the last step changed.",
   "Call stack": "Which function is running and which functions called it, newest first. Below: the raw stack memory, where functions keep their local values.",
   "Pins": "Every GPIO pin: what drives it (your code through digitalWrite, or a peripheral like the RMT or a UART; click it for that peripheral's registers), whether it's an output or an input with its pull resistor, and its level. History: one bar per read of the pins (each stop, or each Live values update while this tab is open); hover a bar for when it was taken in CPU clock cycles. That counter (CCOUNT, 32 bits) stands still while the CPU is paused, so it measures the program's own running time; it wraps every 2³² cycles (about 27 s at 160 MHz).",
+  "Program": "The program as machine code: where it sits in app.bin (the file written to flash) and the CPU instructions of the function the CPU is in, each explained, with your source lines in between. Hover an instruction to see its line in the editor; click a call or jump to follow it. Everything shares one 32-bit address space: 0x42… is code in flash, 0x3FC8… is RAM, 0x6000… are hardware registers (the Memory tab). An instruction is only 2–3 bytes, too short to hold a 32-bit address, so the compiler stores the addresses a function needs (of other functions, variables, hardware registers) as constants in a “literal pool” in flash just before the function, and loads them with l32r.",
   "Registers": "The CPU's 16 working registers a0–a15 and the program counter pc (the instruction it runs next). The ESP32-S3's Xtensa CPU has 64 physical registers; a0–a15 is a sliding window on them that moves with every function call, so each function gets fresh ones. By convention a0 holds the return address and a1 the stack pointer. Hover a value for what it could point to.",
   "Memory": "Any address on the chip. Memory is shown as 32-bit words with what each could mean; the peripheral area (0x6000_0000 and up) is shown as named registers, decoded into their fields.",
   "History": "Every stop and every change, newest first. Click a stop to look back at that moment.",
@@ -198,6 +230,23 @@ const shortFile = (f: string) => f.replace("/src/", "");
 /** "loop::hue" → hue: the name the code uses. */
 const shortName = (n: string) => (n.includes("::") ? n.slice(n.lastIndexOf("::") + 2) : n);
 const sameBytes = (a?: Uint8Array, b?: Uint8Array) => !!a && !!b && a.length === b.length && a.every((x, i) => x === b[i]);
+
+/**
+ * A toolbar button's icon and text. Docked to the side of the editor, where the panel is narrow,
+ * only the icon shows (CSS hides .lbl); the button's title says what it does.
+ */
+function setLabel(b: HTMLElement, icon: string, text: string): void {
+  if (b.dataset.label === `${icon}${text}`) return;
+  b.dataset.label = `${icon}${text}`;
+  const ic = document.createElement("span");
+  ic.className = "ic";
+  ic.textContent = icon;
+  const lbl = document.createElement("span");
+  lbl.className = "lbl";
+  lbl.textContent = ` ${text}`;
+  b.replaceChildren(ic, lbl);
+  b.setAttribute("aria-label", text);
+}
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls = "", text = ""): HTMLElementTagNameMap[K] {
   const e = document.createElement(tag);
@@ -254,6 +303,8 @@ export class JtagInspector {
     /** For a peripheral: its registers' values by address. */
     words: undefined as Map<number, number> | undefined, prevWords: undefined as Map<number, number> | undefined,
     filter: "",
+    /** What's typed in the search box ("" when it shows the current address). */
+    query: "",
     /** The tab a link brought the user here from, for a way back. */
     from: undefined as Tab | undefined,
   };
@@ -265,6 +316,11 @@ export class JtagInspector {
   /** How long the last live-values pause froze the program (ms), for checking it stays short. */
   lastLivePause = 0;
   private stepping = false;
+  /** The tab's help text unfolded (when the panel is narrow). */
+  private helpOpen = false;
+  /** What's typed in the Variables tab's search, and in the Program view's. */
+  private varQuery = "";
+  private programQuery = "";
   /** Objects whose members are shown (watch keys). */
   private readonly expanded = new Set<string>();
   private cancelStep = false;
@@ -293,49 +349,57 @@ export class JtagInspector {
   constructor(private readonly root: HTMLElement, private readonly host: InspectorHost, private readonly createTarget: () => DebugTarget) {
     root.classList.add("jtag-panel");
     const bar = el("div", "jt-bar");
-    const add = (id: string, label: string, title: string, action: () => Promise<void>, cls = "dbg") => {
-      const b = el("button", cls, label);
+    const add = (id: string, label: [string, string], title: string, action: () => Promise<void>, cls = "dbg") => {
+      const b = el("button", cls);
+      setLabel(b, ...label);
       b.title = title;
       b.onclick = () => void action().catch((e) => this.fail(e));
       this.buttons[id] = b;
       bar.append(b);
       return b;
     };
-    add("connect", "Connect", "Connect to the ESP32-S3 through its native USB port (WebUSB)", () => this.toggleConnection());
-    add("pause", "⏸ Pause", "Freeze the program to look inside it, or let it run on", async () => {
+    add("connect", ["⏻", "Connect"], "Connect to the ESP32-S3 through its native USB port (WebUSB)", () => this.toggleConnection());
+    add("pause", ["⏸", "Pause"], "Freeze the program to look inside it, or let it run on", async () => {
       if (this.autoRunning || this.stepping) this.stopStepping();
       else if (this.halted && this.crashed) await this.restart();
       else if (this.halted) await this.resume();
       else await this.pause();
     });
-    add("over", "⏭ Next line", "Run one line of your code. Functions it calls run in one go", () => this.stepLine(true));
-    add("line", "⤵ Step into", "Run one line, going inside the functions it calls if they're yours", () => this.stepLine(false));
-    add("insn", "Next instruction", "Run exactly one machine instruction (advanced)", () => this.stepInstruction(), "dbg subtle");
+    add("over", ["⏭", "Next line"], "Run one line of your code. Functions it calls run in one go", () => this.stepLine(true));
+    add("line", ["⤵", "Step into"], "Run one line, going inside the functions it calls if they're yours", () => this.stepLine(false));
+    add("insn", ["↧", "Next instruction"], "Run exactly one machine instruction (advanced)", () => this.stepInstruction(), "dbg subtle");
     const autoGroup = el("span", "jt-group");
-    const autoButton = el("button", "dbg", "⏯ Auto-step");
+    const autoButton = el("button", "dbg");
+    setLabel(autoButton, "⏯", "Auto-step");
     autoButton.title = "Keep stepping by itself, slowly enough to follow, recording every stop. Stops at breakpoints, or when you press Stop";
     autoButton.onclick = () => void this.autoStep().catch((e) => this.fail(e));
     this.buttons.auto = autoButton;
-    for (const [v, label] of [["over", "by line"], ["line", "by line, into functions"], ["insn", "by instruction"]]) this.autoMode.add(new Option(label, v));
+    for (const [v, label] of [["over", "by line"], ["line", "by line, into functions"], ["insn", "by instruction"], ["bp", "by breakpoint"]]) this.autoMode.add(new Option(label, v));
     for (const [v, label] of [["1000", "slow"], ["400", "medium"], ["100", "fast"], ["0", "fastest"]]) this.autoSpeed.add(new Option(label, v, false, v === "400"));
-    this.autoMode.title = "What one automatic step is";
+    this.autoMode.title = "What one automatic step is. By breakpoint: run at full speed to the next breakpoint, record that stop, wait, and run on again";
     this.autoSpeed.title = "How long to wait between automatic steps";
     autoGroup.append(autoButton, this.autoMode, this.autoSpeed);
+    this.autoMode.onchange = this.autoSpeed.onchange = () => this.savePrefs();
     bar.append(autoGroup);
 
     this.live.type = "checkbox";
     const liveLabel = el("label", "check");
     liveLabel.title = "While the program runs, freeze it for a moment (under 0.1 s, at most once a second) to update the watched values";
-    liveLabel.append(this.live, " Live values");
-    this.live.onchange = () => void this.livePoll();
+    liveLabel.append(this.live, el("span", "lbl", " Live values"), el("span", "short", " Live"));
+    this.live.onchange = () => {
+      this.savePrefs();
+      void this.livePoll();
+    };
     this.verbose.type = "checkbox";
     this.verbose.checked = true;
     const verboseLabel = el("label", "check subtle");
     verboseLabel.title = "Log every USB transfer, TAP scan and debug-register access to the browser's developer console (for bug reports)";
     verboseLabel.append(this.verbose, " Log");
+    verboseLabel.classList.add("jt-log");
+    this.verbose.onchange = () => this.savePrefs();
     const close = el("button", "small", "×");
     close.title = "Close the hardware inspector";
-    close.onclick = () => (root.hidden = true);
+    close.onclick = () => this.hide();
     bar.append(liveLabel, verboseLabel, close);
     bar.title = "Drag the toolbar to the left, right or bottom edge of the editor to dock the panel there";
     bar.classList.add("jt-drag");
@@ -354,6 +418,7 @@ export class JtagInspector {
         bar.removeEventListener("pointerup", up);
         area.removeAttribute("data-dock-preview");
         area.dataset.dock = dockAt(ev);
+        this.savePrefs();
         host.editor.layout();
       };
       bar.addEventListener("pointermove", move);
@@ -364,6 +429,7 @@ export class JtagInspector {
       const b = el("button", "jt-tab", t);
       b.onclick = () => {
         this.tab = t;
+        this.savePrefs();
         this.render();
       };
       this.tabButtons.set(t, b);
@@ -387,12 +453,14 @@ export class JtagInspector {
       const up = () => {
         resizer.removeEventListener("pointermove", move);
         resizer.removeEventListener("pointerup", up);
+        this.savePrefs();
         host.editor.layout();
       };
       resizer.addEventListener("pointermove", move);
       resizer.addEventListener("pointerup", up);
     };
     root.append(resizer, bar, this.story, this.scrubber, tabs, this.body);
+    this.restorePrefs();
     this.setState();
 
     // The register descriptions (about 1 MB) load in the background.
@@ -410,11 +478,77 @@ export class JtagInspector {
 
   show(): void {
     this.root.hidden = false;
+    this.savePrefs();
+    this.host.editor.layout();
   }
 
-  /** The symbols of the build now on the chip. */
-  attach(table: LineTable | undefined): void {
+  hide(): void {
+    this.root.hidden = true;
+    this.savePrefs();
+    this.host.editor.layout();
+  }
+
+  // ---- remembered between visits (localStorage) ----
+
+  /** Whether JTAG was connected when the page was left: it reconnects then (no picker). */
+  private wasConnected = false;
+
+  private savePrefs(): void {
+    const area = this.root.parentElement;
+    const prefs: Prefs = {
+      open: !this.root.hidden, dock: area?.dataset.dock, h: this.root.style.getPropertyValue("--jt-h") || undefined,
+      w: this.root.style.getPropertyValue("--jt-w") || undefined, tab: this.tab, live: this.live.checked, log: this.verbose.checked,
+      autoMode: this.autoMode.value, autoSpeed: this.autoSpeed.value, connected: this.wasConnected,
+    };
+    try {
+      localStorage.setItem(PREFS_KEY, JSON.stringify(prefs));
+    } catch { /* storage unavailable: nothing is remembered */ }
+  }
+
+  private restorePrefs(): void {
+    let prefs: Prefs = {};
+    try {
+      prefs = JSON.parse(localStorage.getItem(PREFS_KEY) ?? "{}") as Prefs;
+    } catch { /* nothing remembered */ }
+    const area = this.root.parentElement;
+    if (prefs.open) this.root.hidden = false;
+    if (area && prefs.dock) area.dataset.dock = prefs.dock;
+    if (prefs.h) this.root.style.setProperty("--jt-h", prefs.h);
+    if (prefs.w) {
+      this.root.style.setProperty("--jt-w", prefs.w);
+      area?.style.setProperty("--jt-w", prefs.w);
+    }
+    if (prefs.tab && (TABS as readonly string[]).includes(prefs.tab)) this.tab = prefs.tab;
+    if (prefs.live !== undefined) this.live.checked = prefs.live;
+    if (prefs.log !== undefined) this.verbose.checked = prefs.log;
+    if (prefs.autoMode) this.autoMode.value = prefs.autoMode;
+    if (prefs.autoSpeed) this.autoSpeed.value = prefs.autoSpeed;
+    this.wasConnected = !!prefs.connected;
+    // Connected before the page was reloaded: connect again, quietly (only to a device this page
+    // was allowed before; never the browser's picker).
+    if (this.wasConnected && !this.root.hidden) setTimeout(() => void this.connect(true), 300);
+  }
+
+  /** The panel is open: builds are made for it (debug info, no trace hooks). */
+  get visible(): boolean {
+    return !this.root.hidden;
+  }
+
+  /** The program (machine code, functions, app.bin layout), for the Program view. */
+  private program?: Program;
+  /** The Program view: a function or address chosen by the user (else where the CPU is). */
+  private programAt?: number;
+  private asmHover?: { model: monaco.editor.ITextModel; ids: string[] };
+
+  /** The symbols of the build now on the chip, and the build itself (for its machine code). */
+  attach(table: LineTable | undefined, elf?: Uint8Array, app?: { data: Uint8Array; address: number }): void {
     this.table = table;
+    try {
+      this.program = elf ? loadProgram(elf, app) : undefined;
+    } catch {
+      this.program = undefined;
+    }
+    this.programAt = undefined;
     this.symbols = table ? dataSymbols(table) : [];
     this.globalTypes = new Map((table?.info?.vars ?? []).filter((v) => v.addr !== undefined && v.type >= 0).map((v) => [v.addr!, v.type]));
     this.frames = undefined;
@@ -528,7 +662,9 @@ export class JtagInspector {
   private async toggleConnection(): Promise<void> {
     if (this.target) {
       const t = this.target;
+      this.wasConnected = false;
       this.dropTarget();
+      this.savePrefs();
       await this.run(() => t.disconnect().catch(() => {}));
       return;
     }
@@ -569,6 +705,8 @@ export class JtagInspector {
     });
     target.onLost = (reason) => {
       if (this.target !== target) return;
+      this.wasConnected = false;
+      this.savePrefs();
       this.host.log(`JTAG: ${reason}`, "error");
       this.dropTarget(`${reason}. Connect again once the chip is back.`);
     };
@@ -599,6 +737,8 @@ export class JtagInspector {
     this.target = target;
     this.stepCount = 0;
     this.host.connectionChanged?.(true);
+    this.wasConnected = true;
+    this.savePrefs();
     this.host.log(`JTAG connected: ${target.name}${target.coreCount > 1 ? `, ${target.coreCount} cores` : ""}`, "ok");
     const halted = await this.run(async () => {
       this.halted = await target.isHalted();
@@ -606,7 +746,13 @@ export class JtagInspector {
       return this.halted;
     });
     if (halted) await this.snapshot("it was already paused when you connected");
-    else void this.pollForStop();
+    else {
+      void this.pollForStop();
+      // Breakpoints set in the editor (remembered from before a reload, say) go into the chip now,
+      // not only at the next Continue.
+      if (this.hardwareBreakpoints().length) this.breakpointsChanged();
+    }
+    if (this.live.checked) void this.livePoll(); // Live values was on (before a reload, say)
     void this.watchWhilePaused(target);
     this.setState();
     return true;
@@ -631,10 +777,14 @@ export class JtagInspector {
   private setState(): void {
     const busy = this.stepping || this.autoRunning;
     const b = this.buttons;
-    b.connect.textContent = this.target ? "Disconnect" : this.connecting ? "Connecting…" : "Connect";
+    setLabel(b.connect, ...(this.target ? ["⏏", "Disconnect"] : this.connecting ? ["…", "Connecting…"] : ["⏻", "Connect"]) as [string, string]);
+    b.connect.title = this.target ? "Disconnect from the chip (it keeps running)" : "Connect to the ESP32-S3 through its native USB port (WebUSB)";
     b.connect.disabled = this.connecting;
-    b.pause.textContent = busy ? "■ Stop" : this.crashed ? "↻ Restart" : this.halted ? "▶ Continue" : "⏸ Pause";
-    b.pause.title = this.crashed ? "Start the program over (continuing would only crash again)" : "Freeze the program to look inside it, or let it run on";
+    const [icon, text, title] = busy ? ["■", "Stop", "Stop stepping and stay where the program is"]
+      : this.crashed ? ["↻", "Restart", "Start the program over (continuing would only crash again)"]
+      : this.halted ? ["▶", "Continue", "Let the program run on"] : ["⏸", "Pause", "Freeze the program to look inside it"];
+    setLabel(b.pause, icon, text);
+    b.pause.title = title;
     b.pause.disabled = !this.target;
     for (const id of ["line", "over", "insn", "auto"]) b[id].disabled = !this.target || !this.halted || busy;
     this.autoMode.disabled = this.autoSpeed.disabled = !this.target;
@@ -672,11 +822,12 @@ export class JtagInspector {
     if (table) {
       // First a core that's in your code, then one that's in a function your code called
       // (gpio_set_level, delay, …): its call stack leads back to your code.
-      for (let i = 0; i < t.coreCount; i++) {
+      // Only stopped cores: one held in reset (after a restart) has no registers to read.
+      for (const i of t.haltedCores) {
         t.selectCore(i);
         if (functionAt(table, await t.readPc())) return;
       }
-      for (let i = 0; i < t.coreCount; i++) {
+      for (const i of t.haltedCores) {
         t.selectCore(i);
         const frames = await t.readFrames(MAX_FRAMES).catch(() => []);
         if (frames.slice(1).some((f) => functionAt(table, f.pc - 1))) return;
@@ -685,7 +836,8 @@ export class JtagInspector {
     // Neither: the core your program's main task runs on. Arduino runs loop() on core 1;
     // ESP-IDF's app_main runs on core 0.
     const arduino = !!table && Array.from({ length: table.funcs.length / 3 }, (_, k) => table.names[table.funcs[3 * k + 2]]).some((n) => /^loop(\(|$)/.test(n));
-    t.selectCore(arduino ? Math.min(1, t.coreCount - 1) : 0);
+    const preferred = arduino ? Math.min(1, t.coreCount - 1) : 0;
+    t.selectCore(t.haltedCores.includes(preferred) ? preferred : t.haltedCores[0] ?? preferred);
   }
 
   private async resume(): Promise<void> {
@@ -779,6 +931,9 @@ export class JtagInspector {
         this.viewIndex = undefined;
         this.clearExec();
         this.setState();
+        // The reset cleared the breakpoints (onReset couldn't put them back: it ran while this
+        // still counted as paused).
+        if (this.hardwareBreakpoints().length) this.breakpointsChanged();
         void this.pollForStop();
       } catch { /* a USB hiccup: try again next time */ }
     }
@@ -848,7 +1003,7 @@ export class JtagInspector {
         await t.stepInstruction();
         return true;
       });
-      if (stepped) await this.snapshot("one instruction ran");
+      if (stepped) await this.snapshot("one instruction ran", true);
     } finally {
       this.stepping = false;
       this.setState();
@@ -871,6 +1026,7 @@ export class JtagInspector {
     this.setState();
     let note = "";
     let reason = "it finished the line";
+    let moved = false;
     try {
       await this.run(async () => {
         if (this.target !== t || !this.halted) return;
@@ -888,9 +1044,12 @@ export class JtagInspector {
           }
           const result = await this.runTo(t, resumeAt);
           reason = result === "reached" ? "it came back to your code" : result;
+          moved = true;
           return;
         }
         const start = locateExact(table, pc);
+        moved = true;
+        if (start) reason = `line ${start.line} ran`;
         const startFn = functionAt(table, pc);
         const deadline = Date.now() + STEP_TIME_LIMIT_MS;
         for (let n = 0; ; n++) {
@@ -915,7 +1074,7 @@ export class JtagInspector {
       });
       if (note) this.host.log(`JTAG: ${note}`, "muted");
       // Read the new stop before the buttons come back, so the next click acts on what's shown.
-      await this.snapshot(reason);
+      await this.snapshot(reason, moved);
     } finally {
       this.stepping = false;
       this.setState();
@@ -1012,13 +1171,21 @@ export class JtagInspector {
     this.viewIndex = undefined;
     this.setState();
     try {
+      if (this.autoMode.value === "bp" && !this.hardwareBreakpoints().length) {
+        this.host.log("JTAG: auto-step by breakpoint needs a breakpoint: click left of a line number to set one", "error");
+        return;
+      }
       while (this.autoRunning && this.target && this.halted) {
         const mode = this.autoMode.value;
         if (mode === "insn") await this.stepInstruction();
-        else await this.stepLine(mode === "over");
+        else if (mode === "bp") {
+          if (!(await this.runToBreakpoint())) break;
+        } else await this.stepLine(mode === "over");
         if (!this.autoRunning || this.cancelStep || !this.halted) break;
         const last = this.states[this.states.length - 1];
-        if (last && (last.cause === "crash" || this.hardwareBreakpoints().includes(last.pc))) {
+        if (last?.cause === "crash") break;
+        // Stepping line by line, a breakpoint ends the run; by breakpoint, it's where each step ends.
+        if (mode !== "bp" && last && this.hardwareBreakpoints().includes(last.pc)) {
           this.host.log("JTAG: auto-step stopped at a breakpoint", "muted");
           break;
         }
@@ -1031,17 +1198,44 @@ export class JtagInspector {
     }
   }
 
+  /**
+   * One auto-step by breakpoint: let the program run at full speed until it stops at a breakpoint
+   * (the stop-watcher records it). Stop pauses it wherever it is. Whether it reached one.
+   */
+  private async runToBreakpoint(): Promise<boolean> {
+    const before = this.states.length;
+    await this.resume();
+    while (this.target && !this.halted) {
+      if (!this.autoRunning || this.cancelStep) {
+        await this.pause();
+        return false;
+      }
+      await sleep(50);
+    }
+    // The stop-watcher saw the stop; wait for its reading to be recorded.
+    for (let n = 0; n < 100 && this.states.length === before && this.target; n++) await sleep(50);
+    return this.halted && this.states.length > before;
+  }
+
   // ---- reading the chip ----
 
   /** Read everything the panels show and record it as a new stop; the CPU must be halted. */
-  private async read(reason?: string): Promise<void> {
+  private async read(reason?: string, stepped = false): Promise<void> {
     const t = this.target!;
     this.frames = undefined;
     let cause = await t.stopCause().catch((): StopCause => "unknown");
     this.regs = await t.readRegisters();
     // With a debugger attached, ESP-IDF's crash handler puts a breakpoint on the instruction that
     // failed and returns to it: a breakpoint stop that isn't one of yours is a crash.
-    if (!reason && cause === "breakpoint" && !this.hardwareBreakpoints().includes(this.regs.pc)) cause = "crash";
+    // Only when there's evidence of a crash: ESP-IDF's panic message, or a stop outside your code.
+    // A breakpoint in your code the editor doesn't know is one still programmed in the chip
+    // (from before a page reload, say): resuming clears it.
+    let foreign = false;
+    if (!reason && cause === "breakpoint" && !this.hardwareBreakpoints().includes(this.regs.pc)) {
+      const inYourCode = !!this.table && !!functionAt(this.table, this.regs.pc);
+      if (this.crashReason() || !inYourCode) cause = "crash";
+      else foreign = true;
+    }
     this.where = this.table ? locateExact(this.table, this.regs.pc) : undefined;
     // Past the registers, a part that can't be read (a corrupt stack pointer, a bad address)
     // is reported but doesn't take the rest of the snapshot down with it.
@@ -1070,8 +1264,10 @@ export class JtagInspector {
     const values = new Map<string, Uint8Array>();
     for (const w of this.watches) if (w.bytes && !w.stale && !w.error) values.set(w.key, w.bytes);
     const state: CpuState = {
-      n: ++this.stepCount, at: Date.now(), core: t.core, cause,
-      reason: cause === "crash" ? `${CAUSES.crash}${this.crashReason() ? `: ${this.crashReason()}` : ""}` : reason ?? CAUSES[cause],
+      n: ++this.stepCount, at: Date.now(), core: t.core, cause, stepped,
+      reason: cause === "crash" ? `${CAUSES.crash}${this.crashReason() ? `: ${this.crashReason()}` : ""}`
+        : foreign ? "it reached a breakpoint that's still set in the chip but not in the editor (from before the page was reloaded?); Continue clears it"
+        : reason ?? CAUSES[cause],
       pc: this.regs.pc, where: this.where, ar: [...this.regs.ar],
       stack: this.stack && { base: this.stack.base, words: [...this.stack.words] }, values,
       calls: (this.frames as Frame[] | undefined)?.map((f) => f.pc), // set by discoverLocals()
@@ -1274,14 +1470,14 @@ export class JtagInspector {
   }
 
   /** A stop: read the chip, record it, show where it is, update every view. */
-  private async snapshot(reason?: string): Promise<void> {
+  private async snapshot(reason?: string, stepped = false): Promise<void> {
     const t = this.target;
     let read = false;
     try {
       // Only while still halted: a Continue queued ahead of this would have the core running.
       read = await this.run(async () => {
         if (!t || this.target !== t || !this.halted) return false;
-        await this.read(reason);
+        await this.read(reason, stepped);
         return true;
       });
     } catch (e) {
@@ -1308,6 +1504,13 @@ export class JtagInspector {
   /** The stop being shown: the one looked back at, else the latest. */
   private viewed(): CpuState | undefined {
     return this.viewIndex !== undefined ? this.states[this.viewIndex] : this.states[this.states.length - 1];
+  }
+
+  /** The line that just ran: the stop before's line, when this stop came from a step out of it. */
+  private justRan(state: CpuState): SourceLocation | undefined {
+    if (!state.stepped) return undefined;
+    const i = this.states.indexOf(state);
+    return i > 0 ? this.states[i - 1].where : undefined;
   }
 
   /** The stop just before the viewed one, to compare with. */
@@ -1393,13 +1596,26 @@ export class JtagInspector {
         isWholeLine: true,
         className: past ? "exec-line past" : "exec-line stopped",
         glyphMarginClassName: past ? "exec-glyph past" : "exec-glyph stopped",
-        glyphMarginHoverMessage: { value: `${past ? `Step ${state.n} (looking back)` : "Paused here"}: ${state.reason}` },
+        glyphMarginHoverMessage: { value: `${past ? `Step ${state.n} (looking back): next` : "Next"} to run — this line hasn't run yet. (${state.reason})` },
+        hoverMessage: { value: "**Next to run** — this line hasn't run yet" },
         minimap: { color: "#ffcc66", position: monaco.editor.MinimapPosition.Inline },
         overviewRuler: { color: "#e2c08d", position: monaco.editor.OverviewRulerLane.Full },
       },
     }];
-    // The trail: distinct lines of the stops before this one, newest first.
+    // The line that just ran (when this stop came from a step): marked ✓.
     const seen = new Set([loc.line]);
+    const ran = this.justRan(state);
+    if (ran && ran.file === loc.file && ran.line !== loc.line && ran.line <= model.getLineCount()) {
+      decorations.push({
+        range: new monaco.Range(ran.line, 1, ran.line, 1),
+        options: {
+          isWholeLine: true, className: "exec-ran", glyphMarginClassName: "exec-ran-glyph",
+          glyphMarginHoverMessage: { value: "Just ran — the step before this stop" }, hoverMessage: { value: "**Just ran** (the step before this stop)" },
+        },
+      });
+      seen.add(ran.line);
+    }
+    // The trail: distinct lines of the stops before this one, newest first.
     const end = this.viewIndex ?? this.states.length - 1;
     for (let i = end - 1; i >= 0 && seen.size <= TRAIL; i--) {
       const w = this.states[i].where;
@@ -1527,8 +1743,15 @@ export class JtagInspector {
     this.renderStory();
     this.renderScrubber();
     for (const [t, b] of this.tabButtons) b.classList.toggle("active", t === this.tab);
-    const help = el("p", "jt-help", TAB_HELP[this.tab]);
-    this.body.replaceChildren(help, ...this.renderTab());
+    // Folded to two lines when the panel is narrow; a click shows it all (and folds it again).
+    const help = el("p", `jt-help${this.helpOpen ? " open" : ""}`, TAB_HELP[this.tab]);
+    help.title = this.helpOpen ? "Click to fold" : "Click to read it all";
+    help.onclick = () => {
+      this.helpOpen = !this.helpOpen;
+      this.render();
+    };
+    // Patched in place, not replaced: a text selection survives updates and nothing jumps.
+    morphChildren(this.body, [help, ...this.renderTab()]);
   }
 
   /** One plain-language sentence on what's going on, and what to do next. */
@@ -1547,7 +1770,7 @@ export class JtagInspector {
         "Plug the ESP32-S3 in by its native USB port (often marked “USB”, not “UART”), upload your sketch, then press Connect."];
     } else if (this.lookingBack && state) {
       cls = "past";
-      [icon, title] = ["⏪", `Looking back at step ${state.n}: ${place(state)}`];
+      [icon, title] = ["⏪", `Looking back at step ${state.n}: before ${place(state)}`];
       detail = `This is a recording from ${new Date(state.at).toLocaleTimeString()}; ${state.reason}. The chip itself is still at step ${this.states[this.states.length - 1].n}.`;
     } else if (this.autoRunning) {
       [icon, title, detail] = ["⏯", `Auto-stepping${state ? `: now at ${place(state)}` : ""}`,
@@ -1563,8 +1786,10 @@ export class JtagInspector {
       [icon, title] = ["⚠", `Your program crashed${state.where ? ` at ${place(state)}` : ""}${core(state)}`];
       detail = `Why: ${state.reason.replace(/^the program crashed:? ?/, "") || "ESP-IDF stopped it"}. The Call stack tab shows which of your functions led here. Restart starts the program over.`;
     } else if (state) {
-      [icon, title] = ["⏸", `Paused at ${place(state)}${core(state)}`];
-      detail = `Why: ${state.reason}. Next: “Next line” runs one line, “Continue” lets it run on.`;
+      // The marked line is the next one to run: it hasn't run yet. Say so, and which one just did.
+      const ran = this.justRan(state);
+      [icon, title] = ["⏸", `Paused before ${place(state)}${core(state)}`];
+      detail = `That line hasn't run yet: it runs next. ${ran ? `Line ${ran.line} just ran.` : `Why it stopped: ${state.reason}.`} “Next line” runs it; “Continue” lets the program run on.`;
       if (!state.where) detail = `Why: ${state.reason}. This isn't your code; “Next line” runs until it's back in your code.`;
     } else [icon, title, detail] = ["⏸", "Paused", "Reading the chip…"];
     const head = el("div", "jt-story-title");
@@ -1623,23 +1848,34 @@ export class JtagInspector {
   }
 
   private renderTab(): HTMLElement[] {
-    if (!this.table) return [el("p", "jt-empty", "Upload your sketch first (with Trace switched on), so the inspector knows your variables and lines.")];
+    // Memory and Pins read the chip itself; the other tabs need the build's debug info.
+    if (!this.table && this.tab !== "Memory" && this.tab !== "Pins") {
+      return [el("p", "jt-empty", "Build or flash your program with this panel open, so the inspector knows your variables, lines and machine code.")];
+    }
     switch (this.tab) {
       case "Variables": return this.variablesTab();
       case "Call stack": return this.stackTab();
       case "Registers": return this.registersTab();
       case "Memory": return this.memoryTab();
       case "Pins": return this.pinsTab();
+      case "Program": return this.programTab();
       case "History": return this.historyTab();
     }
   }
 
   private variablesTab(): HTMLElement[] {
+    // The search text lives in the inspector, not the input: the panel is patched in place, so
+    // handlers must not hold on to elements of one particular render.
     const search = el("input", "jt-input");
     search.placeholder = "Watch another variable: type its name…";
+    search.value = this.varQuery;
+    search.oninput = (e) => {
+      this.varQuery = (e.currentTarget as HTMLInputElement).value;
+      this.render();
+    };
     const results = el("div", "jt-results");
-    search.oninput = () => {
-      const q = search.value.trim().toLowerCase();
+    {
+      const q = this.varQuery.trim().toLowerCase();
       const locals = (q ? (this.table?.info?.vars ?? []).filter((v) => v.func && v.fbreg !== undefined && v.type >= 0 && v.name.toLowerCase().includes(q)) : []).slice(0, 15);
       const globals = (q ? this.symbols.filter((s) => s.name.toLowerCase().includes(q)).slice(0, 30) : []);
       const entries: { label: string; add: () => void }[] = [
@@ -1651,13 +1887,14 @@ export class JtagInspector {
         row.title = "Watch this variable";
         row.onclick = () => {
           e.add();
+          this.varQuery = "";
           if (this.halted && !this.lookingBack) void this.snapshot("you added a variable");
           else this.render();
         };
         return row;
       }));
-    };
-    const table = el("table", "jt-table");
+    }
+    const table = el("table", "jt-table jt-vars jt-fixed");
     const head = el("tr");
     for (const [label, title] of [
       ["Variable", ""], ["Now", "The value at this stop"], ["Before", "The value at the stop before"],
@@ -1704,8 +1941,8 @@ export class JtagInspector {
       const format = el("select", "jt-format");
       format.title = "Show as a decimal number, hexadecimal or a floating-point number";
       for (const f of ["dec", "hex", "float"] as Format[]) format.add(new Option(f, f, false, f === w.format));
-      format.onchange = () => {
-        w.format = format.value as Format;
+      format.onchange = (e) => {
+        w.format = (e.currentTarget as HTMLSelectElement).value as Format;
         this.render();
         this.renderInline();
       };
@@ -1882,24 +2119,87 @@ export class JtagInspector {
     return out;
   }
 
-  private memoryTab(): HTMLElement[] {
-    const addr = el("input", "jt-input");
-    addr.value = "0x" + hex(this.memory.addr);
-    addr.title = "An address (0x…), a variable name or a register name (like GPIO_OUT_REG)";
-    const go = el("button", "dbg", "Show");
-    go.onclick = () => {
-      const text = addr.value.trim();
-      const sym = this.symbols.find((s) => s.name === text || shortName(s.name) === text);
-      const reg = !sym && soc()?.peripherals.flatMap((p) => p.regs).find((r) => r.name === text.toUpperCase() || r.name === text.toUpperCase() + "_REG");
-      const value = sym ? sym.addr : reg ? reg.addr : Number(text);
-      if (!Number.isFinite(value) || value < 0) return this.fail(new Error(`"${text}" isn't an address, a variable or a register`));
-      this.openMemory(value >>> 0, sym?.size ?? this.memory.length);
+  /** Places worth a look, for someone who doesn't know the memory map yet: the suggestions shown before anything is typed. */
+  private memoryPlaces(): MemoryPlace[] {
+    return [
+      { label: "Your variables", kind: "RAM", detail: "The RAM where your global variables are", go: () => this.openMemory(this.symbols.find((s) => this.globalTypes.has(s.addr))?.addr ?? 0x3fc88000, 128), addr: this.symbols.find((s) => this.globalTypes.has(s.addr))?.addr ?? 0x3fc88000 },
+      ...([
+        ["GPIO", 0x60004000, "Pin output/input/enable registers"], ["IO MUX", 0x60009000, "Per-pin configuration: function, pull-ups, drive strength"],
+        ["UART0", 0x60000000, "Serial port 0"], ["Timer group 0", 0x6001f000, "Hardware timers and the task watchdog"],
+        ["System timer", 0x60023000, "The 16 MHz clock behind millis()"], ["LEDC (PWM)", 0x60019000, "analogWrite's PWM channels"],
+        ["RTC control", 0x60008000, "Power, sleep, reset reasons"], ["eFuse", 0x60007000, "Factory data: MAC address, chip revision"],
+      ] as [string, number, string][]).map(([label, addr, detail]) => ({ label, kind: "peripheral", detail, addr, go: () => this.openPeripheral(addr, "") })),
+    ];
+  }
+
+  /**
+   * Everything matching a search, best first: an address, then names that are the search, start
+   * with it or contain it (peripherals, registers, variables, memory regions), then things whose
+   * description mentions it.
+   */
+  private searchMemory(q: string): MemoryPlace[] {
+    const ql = q.toLowerCase().trim();
+    if (!ql) return this.memoryPlaces();
+    const found: (MemoryPlace & { score: number })[] = [];
+    const n = Number(ql);
+    if (/^(0x)?[0-9a-f]+$/.test(ql) && Number.isFinite(n) && ql.length >= 3) {
+      const a = (ql.startsWith("0x") ? n : parseInt(ql, 16)) >>> 0;
+      found.push({ label: `0x${hex(a)}`, kind: "address", detail: regionAt(a)?.name ?? "not mapped", addr: a, go: () => this.openMemory(a, this.memory.length), score: 100 });
+    }
+    // How well a name matches: whole name, start of the name or of a word in it, anywhere.
+    const nameScore = (name: string) => {
+      const nl = name.toLowerCase().replace(/_reg$/, "");
+      if (nl === ql) return 90;
+      if (nl.startsWith(ql)) return 80;
+      if (new RegExp(`(^|[_ (])${ql.replace(/[^a-z0-9]/g, "")}`).test(nl)) return 60;
+      return nl.includes(ql) ? 50 : 0;
     };
-    addr.onkeydown = (e) => {
-      if (e.key === "Enter") go.click();
+    const descScore = (text?: string) => (text?.toLowerCase().includes(ql) ? 20 : 0);
+    for (const p of soc()?.peripherals ?? []) {
+      const score = Math.max(nameScore(p.title) + 5, descScore(p.intro));
+      if (score > 5) found.push({ label: p.title, kind: "peripheral", detail: p.intro || `registers at 0x${hex(p.base)}`, addr: p.base, go: () => this.openPeripheral(p.base, ""), score });
+    }
+    for (const r of REGIONS) {
+      const score = Math.max(nameScore(r.name), descScore(r.explain));
+      if (r.kind !== "peripheral" && score) found.push({ label: r.name, kind: "memory", detail: `0x${hex(r.lo)}–0x${hex(r.hi - 1)}`, addr: r.lo, go: () => this.openMemory(r.lo, this.memory.length), score });
+    }
+    for (const s of this.symbols) {
+      const score = nameScore(shortName(s.name));
+      if (score) found.push({ label: shortName(s.name), kind: "variable", detail: `${s.size} bytes at 0x${hex(s.addr)}`, addr: s.addr, go: () => this.openMemory(s.addr, s.size), score: score - 2 });
+    }
+    for (const p of soc()?.peripherals ?? []) {
+      for (const r of p.regs) {
+        const score = Math.max(nameScore(r.name), descScore(r.desc));
+        if (score) found.push({ label: r.name.replace(/_REG$/, ""), kind: p.title, detail: r.desc, addr: r.addr, go: () => this.openPeripheral(p.base, r.name.replace(/_REG$/, "")), score: score - 1 });
+      }
+    }
+    found.sort((x, y) => y.score - x.score);
+    return found;
+  }
+
+  private memoryTab(): HTMLElement[] {
+    const current = `0x${hex(this.memory.addr)}`;
+    const typing = this.memory.query !== "" && this.memory.query !== current;
+    const search = el("input", "jt-input jt-search");
+    search.value = typing ? this.memory.query : current;
+    search.placeholder = "Search: an address, a peripheral, a register, a variable…";
+    search.title = "Type an address (0x…), or words to search all peripherals, registers (names and descriptions), memory regions and variables";
+    const results = this.searchMemory(typing ? this.memory.query : "");
+    search.oninput = (e) => {
+      this.memory.query = (e.currentTarget as HTMLInputElement).value;
+      this.render();
+    };
+    search.onkeydown = (e) => {
+      if (e.key === "Enter" && results[0]) {
+        this.memory.query = "";
+        results[0].go();
+      } else if (e.key === "Escape") {
+        this.memory.query = "";
+        this.render();
+      }
     };
     const bar = el("div", "jt-memory-bar");
-    bar.append(addr, go);
+    bar.append(search);
     if (this.memory.from) {
       const from = this.memory.from;
       const back = el("button", "small", `← Back to ${from}`);
@@ -1910,25 +2210,28 @@ export class JtagInspector {
       };
       bar.prepend(back);
     }
-    // Places worth a look, for someone who doesn't know the memory map yet.
-    const places: [string, number, string][] = [
-      ["Your variables", this.symbols.find((s) => this.globalTypes.has(s.addr))?.addr ?? 0x3fc88000, "The RAM where your global variables are"],
-      ["GPIO", 0x60004000, "Pin output/input/enable registers"],
-      ["IO MUX", 0x60009000, "Per-pin configuration: function, pull-ups, drive strength"],
-      ["UART0", 0x60000000, "Serial port 0"],
-      ["Timer group 0", 0x6001f000, "Hardware timers and the task watchdog"],
-      ["System timer", 0x60023000, "The 16 MHz clock behind millis()"],
-      ["LEDC (PWM)", 0x60019000, "analogWrite's PWM channels"],
-      ["RTC control", 0x60008000, "Power, sleep, reset reasons"],
-      ["eFuse", 0x60007000, "Factory data: MAC address, chip revision"],
-    ];
-    const jumps = el("div", "jt-jumps");
-    for (const [label, at, title] of places) {
-      const b = el("button", "small", label);
-      b.title = title;
-      b.onclick = () => this.openMemory(at, this.memory.length);
+    // Suggestions before anything's typed (the one being shown highlighted), matches while typing.
+    const jumps = el("div", typing ? "jt-search-results" : "jt-jumps");
+    // Matches: the best ones, and how many there are in all.
+    const shown = typing ? results.slice(0, SEARCH_SHOWN) : results;
+    if (typing && results.length) {
+      jumps.append(el("div", "jt-search-count", results.length > shown.length
+        ? `${results.length} matches; the best ${shown.length} first. Type more to narrow it down (e.g. “gpio_out”, “uart0”, an address).`
+        : `${results.length} match${results.length === 1 ? "" : "es"}`));
+    }
+    for (const r of shown) {
+      const active = !typing && r.addr !== undefined && (r.addr === this.memory.addr || (r.kind === "peripheral" && peripheralAt(this.memory.addr)?.base === r.addr && regionAt(this.memory.addr)?.kind === "peripheral"));
+      const b = el("button", `${typing ? "jt-result" : "small"}${active ? " active" : ""}`);
+      if (typing) b.append(el("span", "", r.label), el("span", "jt-kind", ` ${r.kind} · ${r.detail}`));
+      else b.textContent = r.label;
+      b.title = `${r.detail}${r.addr !== undefined ? ` (0x${hex(r.addr)})` : ""}`;
+      b.onclick = () => {
+        this.memory.query = "";
+        r.go();
+      };
       jumps.append(b);
     }
+    if (typing && !results.length) jumps.append(el("p", "jt-empty", "Nothing matches."));
     const out: HTMLElement[] = [bar, jumps, this.regionCard(this.memory.addr)];
     const words = this.memory.words;
     const per = regionAt(this.memory.addr)?.kind === "peripheral" ? peripheralAt(this.memory.addr) : undefined;
@@ -1970,7 +2273,7 @@ export class JtagInspector {
       box.append(el("p", "jt-empty", this.halted ? "Press Show." : "Pause the program, then press Show."));
       return box;
     }
-    const table = el("table", "jt-table");
+    const table = el("table", "jt-table jt-wordtable jt-fixed");
     const head = el("tr");
     for (const [h, title] of [["Address", ""], ["Bytes", "As stored in memory: the lowest address first (little-endian)"], ["As a 32-bit number", "The four bytes read as one number (the ESP32-S3 is little-endian, so the last byte is the most significant)"], ["Means", "What the number could be: a pointer to something, or text"], ["Variable", "The variable stored here"]]) {
       const th = el("th", "", h);
@@ -2023,7 +2326,7 @@ export class JtagInspector {
     const filter = el("input", "jt-input");
     filter.placeholder = `Filter ${per.regs.length} registers…`;
     filter.value = this.memory.filter;
-    const table = el("table", "jt-table jt-regtable");
+    const table = el("table", "jt-table jt-regtable jt-fixed");
     const head = el("tr");
     for (const h of ["Register", "Value", "What it says", ""]) head.append(el("th", "", h));
     const fill = () => {
@@ -2070,7 +2373,10 @@ export class JtagInspector {
         table.append(tr);
       }
     };
-    filter.oninput = fill;
+    filter.oninput = (e) => {
+      this.memory.filter = (e.currentTarget as HTMLInputElement).value;
+      this.render();
+    };
     fill();
     const legend = el("p", "jt-muted", "ⓘ marks registers that don't simply hold a setting: write-only shortcuts that read as 0, snapshots that need a refresh, flags the hardware sets or clears by itself. Hover it for details; hover a field for its bit range and meaning.");
     return [filter, table, legend];
@@ -2128,6 +2434,322 @@ export class JtagInspector {
     return "→ RTC memory (kept in deep sleep)";
   }
 
+  // ---- the program ----
+
+  /** A name for an address in the disassembly: a function (+ offset) or a variable. */
+  private nameOf(addr: number): string | undefined {
+    const f = this.program && funcAt(this.program, addr);
+    if (f) return addr === f.addr ? f.name : `${f.name}+${addr - f.addr}`;
+    const sym = this.symbols.find((s) => addr >= s.addr && addr < s.addr + s.size);
+    return sym ? `${shortName(sym.name)}${addr !== sym.addr ? `+${addr - sym.addr}` : ""}` : undefined;
+  }
+
+  private programTab(): HTMLElement[] {
+    const p = this.program;
+    if (!p) return [el("p", "jt-empty", "Build the sketch (with the inspector open) to see its machine code.")];
+    const pc = this.viewed()?.pc;
+    const at = this.programAt ?? pc;
+    const out: HTMLElement[] = [];
+
+    // Find a function by name, or an address.
+    const bar = el("div", "jt-memory-bar");
+    const find = el("input", "jt-input");
+    find.placeholder = "Show a function (name) or an address (0x…)";
+    find.value = this.programQuery;
+    find.oninput = (e) => {
+      this.programQuery = (e.currentTarget as HTMLInputElement).value;
+      this.render();
+    };
+    const list = el("div", "jt-results");
+    {
+      const q = this.programQuery.trim().toLowerCase();
+      const hits = q.length < 2 ? [] : p.funcs.filter((f) => f.name.toLowerCase().includes(q)).slice(0, 20);
+      list.replaceChildren(...hits.map((f) => {
+        const b = el("button", "jt-result", `${f.name}  ${hex(f.addr)} · ${f.size} bytes`);
+        b.onclick = () => {
+          this.programAt = f.addr;
+          this.programQuery = "";
+          this.render();
+        };
+        return b;
+      }));
+    }
+    find.onkeydown = (e) => {
+      const v = Number((e.currentTarget as HTMLInputElement).value.trim());
+      if (e.key === "Enter" && Number.isFinite(v)) {
+        this.programQuery = "";
+        this.programAt = v >>> 0;
+        this.render();
+      }
+    };
+    bar.append(find);
+    if (this.programAt !== undefined && pc !== undefined) {
+      const back = el("button", "small", "Back to where the CPU is");
+      back.onclick = () => {
+        this.programAt = undefined;
+        this.render();
+      };
+      bar.append(back);
+    }
+    out.push(bar, list, this.fileMap(p, pc, at));
+
+    if (at === undefined) {
+      out.push(el("p", "jt-empty", "Pause the program to see where it is, or pick a function above."));
+      return out;
+    }
+    const section = codeAt(p, at);
+    const fn = funcAt(p, at);
+    if (!section) {
+      out.push(el("p", "jt-empty", `0x${hex(at)} isn't in the program's code${regionAt(at) ? ` (it's in ${regionAt(at)!.name})` : ""}. Code from the boot ROM isn't part of app.bin.`));
+      return out;
+    }
+    // A whole function (from its start, so instructions line up); a window around `at` otherwise.
+    const start = fn ? fn.addr : Math.max(section.addr, at - 96);
+    const end = fn ? Math.min(fn.addr + fn.size, start + 6000) : Math.min(section.addr + section.size, at + 160);
+    const ctx = { word: (a: number) => wordAt(p, a), name: (a: number) => this.nameOf(a), describe: (v: number) => this.addressMeaning(v) };
+    const insns = disassemble(section.data, section.addr, start, end, ctx);
+    const user = fn && this.table && functionAt(this.table, fn.addr);
+    out.push(el("div", "jt-section jt-asm-head", fn
+      ? `${fn.name}() — ${insns.length} instructions, ${fn.size} bytes at 0x${hex(fn.addr)} in ${section.name}${user ? " · your code" : " · not your code (a library or the system)"}`
+      : `Code around 0x${hex(at)} in ${section.name} (not in a known function)`));
+    out.push(this.asmTable(p, insns, pc));
+    return out;
+  }
+
+  /** app.bin as a strip of its segments, with where the CPU (and the shown code) is in it. */
+  private fileMap(p: Program, pc: number | undefined, at: number | undefined): HTMLElement {
+    const card = el("div", "jt-card");
+    if (!p.segments.length) {
+      card.append(el("p", "", "The file layout isn't known for this build."));
+      return card;
+    }
+    const where = pc === undefined ? undefined : fileOffsetOf(p, pc);
+    const head = el("p");
+    head.append(el("b", "", "app.bin"), ` — ${p.appSize.toLocaleString()} bytes, written to flash at 0x${hex(p.flashOffset)}. `);
+    if (pc !== undefined) {
+      head.append(where
+        ? `The CPU is at 0x${hex(pc)}, which is byte 0x${hex(where.offset)} (${where.offset.toLocaleString()}) of the file — flash address 0x${hex(p.flashOffset + where.offset)} — in segment ${where.segment + 1}.`
+        : `The CPU is at 0x${hex(pc)}, which isn't in the file (${regionAt(pc)?.name ?? "unknown memory"}: the boot ROM, or code ESP-IDF copied elsewhere).`);
+    }
+    card.append(head);
+    const strip = el("div", "jt-filemap");
+    const total = p.segments.reduce((n, s) => n + s.length, 0) || 1;
+    p.segments.forEach((s, i) => {
+      const region = regionAt(s.load);
+      const kind = region?.kind === "flash" ? (s.load >= 0x42000000 ? "code in flash" : "constants in flash") : region?.kind === "ram" ? (s.load >= 0x40000000 ? "code copied to RAM" : "data copied to RAM") : region?.name ?? "other";
+      const seg = el("div", `jt-seg ${region?.kind ?? ""} ${s.load >= 0x40000000 && region?.kind !== "rtc" ? "code" : ""}`);
+      seg.style.flexGrow = String(Math.max(s.length / total, 0.02));
+      seg.append(el("span", "", `${i + 1}`));
+      seg.title = `Segment ${i + 1}: ${kind}\nloaded at 0x${hex(s.load)}–0x${hex(s.load + s.length)}\nfile bytes 0x${hex(s.fileOffset)}–0x${hex(s.fileOffset + s.length)} (${s.length.toLocaleString()} bytes)\n${region?.explain ?? ""}`;
+      for (const [addr, cls] of [[pc, "pc"], [at !== pc ? at : undefined, "shown"]] as const) {
+        if (addr === undefined || addr < s.load || addr >= s.load + s.length) continue;
+        const mark = el("div", `jt-seg-mark ${cls}`);
+        mark.style.left = `${((addr - s.load) / s.length) * 100}%`;
+        mark.title = cls === "pc" ? `The CPU: 0x${hex(addr)}` : `Shown below: 0x${hex(addr)}`;
+        seg.append(mark);
+      }
+      strip.append(seg);
+    });
+    card.append(strip, el("p", "jt-muted", "Each block is a segment of the file: hover for where it's loaded. Flash segments are read in place through the cache; RAM segments are copied to RAM by the bootloader at start-up."));
+    return card;
+  }
+
+  /** What a value is if it's an address, in words: a function, a variable, a hardware register, a kind of memory. */
+  private addressMeaning(v: number): string | undefined {
+    const p = this.program;
+    const f = p && funcAt(p, v);
+    if (f) return v === f.addr ? `the address of function ${f.name}` : `an address inside function ${f.name}`;
+    const reg = regionAt(v)?.kind === "peripheral" ? registerAt(v) : undefined;
+    if (reg) return `the address of hardware register ${reg.name} (${reg.desc}) of ${reg.peripheral.title}`;
+    const sym = this.symbols.find((s) => v >= s.addr && v < s.addr + s.size);
+    if (sym) return `the address of variable ${shortName(sym.name)}${v !== sym.addr ? ` + ${v - sym.addr}` : ""}`;
+    const region = regionAt(v);
+    return region && v >= 0x3c000000 ? `an address in ${region.name}` : undefined;
+  }
+
+  /** Where to look at an address: the Program view for code, the Memory tab for the rest. */
+  private showAddress(v: number): void {
+    const p = this.program;
+    if (p && codeAt(p, v)) {
+      this.programAt = v;
+      this.render();
+      return;
+    }
+    const reg = regionAt(v)?.kind === "peripheral" ? registerAt(v) : undefined;
+    if (reg) return this.openPeripheral(reg.peripheral.base, reg.name.replace(/_REG$/, ""));
+    this.memory.from = undefined;
+    const from = this.tab;
+    this.openMemory(v, 64);
+    this.memory.from = from;
+    this.render();
+  }
+
+  /**
+   * Follow constants through straight-line code, to say which address a load or store touches
+   * ("a8 + 0 = 0x60004010, GPIO_OUT1_REG"): L32R/MOVI/MOV/ADDI set a register to a known value,
+   * anything else that writes it (or a branch target, or a call) forgets it. A small,
+   * conservative version of what a compiler's constant propagation does.
+   */
+  private constantAddresses(insns: Insn[]): Map<number, number> {
+    const p = this.program!;
+    const targets = new Set(insns.filter((i) => i.target !== undefined).map((i) => i.target!));
+    const known = new Map<string, number>();
+    const out = new Map<number, number>();
+    const writesFirst = /^(l8ui|l16ui|l16si|l32i|l32i\.n|l32ai|movi|movi\.n|mov|mov\.n|add|add\.n|addi|addi\.n|addmi|addx\d|sub|subx\d|and|or|xor|extui|slli|srli|srai|sll|srl|sra|src|mull|muluh|mulsh|quou|quos|remu|rems|min|max|minu|maxu|neg|abs|sext|clamps|nsa|nsau|rsr|rsil|l32r|moveqz|movnez|movltz|movgez|salt|saltu|xsr)$/;
+    for (const i of insns) {
+      if (targets.has(i.addr)) known.clear();
+      const ops = i.operands.split(", ");
+      const k = (r: string) => known.get(r);
+      // Loads and stores: base register + offset.
+      if (/^(l|s)(8|16|32)(ui|si|i)(\.n)?$|^l32ai$|^s32ri$/.test(i.mnemonic) && ops.length === 3 && k(ops[1]) !== undefined) {
+        out.set(i.addr, (k(ops[1])! + Number(ops[2])) >>> 0);
+      }
+      const dst = ops[0];
+      if (i.mnemonic === "l32r" && i.literal !== undefined) {
+        const v = wordAt(p, i.literal);
+        if (v === undefined) known.delete(dst); else known.set(dst, v);
+      } else if (/^movi(\.n)?$/.test(i.mnemonic)) known.set(dst, Number(ops[1]) >>> 0);
+      else if (/^mov(\.n)?$/.test(i.mnemonic)) {
+        if (k(ops[1]) === undefined) known.delete(dst); else known.set(dst, k(ops[1])!);
+      } else if (/^addi(\.n)?$|^addmi$/.test(i.mnemonic)) {
+        if (k(ops[1]) === undefined) known.delete(dst); else known.set(dst, (k(ops[1])! + Number(ops[2])) >>> 0);
+      } else if (writesFirst.test(i.mnemonic)) known.delete(dst);
+      if (/^call/.test(i.mnemonic)) for (let r = 8; r < 16; r++) known.delete(`a${r}`); // the callee's registers overlap these
+      if (/^(ret|retw|j$|jx)/.test(i.mnemonic)) known.clear();
+    }
+    return out;
+  }
+
+  /** The instructions, with the source line each belongs to as a heading where it changes. */
+  private asmTable(p: Program, insns: Insn[], pc: number | undefined): HTMLElement {
+    const table = el("table", "jt-table jt-asm");
+    const head = el("tr");
+    for (const [h, t] of [["Address", "Where the instruction is on the chip"], ["File", "Its position in app.bin"], ["Bytes", "The instruction as stored (2 or 3 bytes; 4 for vector instructions)"], ["Instruction", "Xtensa assembly"], ["What it does", ""]]) {
+      const th = el("th", "", h);
+      th.title = t;
+      head.append(th);
+    }
+    table.append(head);
+    const sources = new Map(this.host.sources().map((s) => [s.file, s.model]));
+    const touched = this.constantAddresses(insns);
+    // Register values per instruction: at the stop being viewed (the instruction about to run),
+    // and for earlier stops of the recording at an instruction of this list (before it ran).
+    const viewedIndex = this.viewIndex ?? this.states.length - 1;
+    const viewed = this.states[viewedIndex];
+    const recorded = new Map<number, number>();
+    for (let k = 0; k <= viewedIndex; k++) recorded.set(this.states[k].pc, k);
+    const justRanPc = viewed?.stepped && viewedIndex > 0 ? this.states[viewedIndex - 1].pc : undefined;
+    let lastLine = "";
+    for (const i of insns) {
+      const loc = this.table && locateExact(this.table, i.addr);
+      const key = loc ? `${loc.file}:${loc.line}` : "";
+      if (loc && key !== lastLine) {
+        const model = sources.get(loc.file);
+        const text = model && loc.line <= model.getLineCount() ? model.getLineContent(loc.line).trim() : "";
+        const tr = el("tr", "jt-asm-src");
+        const td = el("td", "", `${shortFile(loc.file)}:${loc.line}   ${text}`);
+        td.colSpan = 5;
+        tr.append(td);
+        table.append(tr);
+      }
+      lastLine = key;
+      const tr = el("tr", i.addr === pc ? "current" : i.addr === justRanPc ? "just-ran" : "");
+      const off = fileOffsetOf(p, i.addr);
+      const ins = el("td", "jt-asm-ins");
+      ins.append(el("span", "jt-asm-mn", i.mnemonic), " ");
+      if (i.target !== undefined && codeAt(p, i.target)) {
+        const link = el("a", "jt-link", i.operands);
+        link.title = "Show this destination";
+        link.onclick = () => {
+          this.programAt = i.target;
+          this.render();
+        };
+        ins.append(link);
+      } else ins.append(i.operands);
+      tr.append(
+        (() => {
+          const td = el("td", "jt-addr", `${i.addr === pc ? "▶ " : i.addr === justRanPc ? "✓ " : ""}${hex(i.addr)}`);
+          if (i.addr === pc) td.title = "Next to run: this instruction hasn't run yet";
+          else if (i.addr === justRanPc) td.title = "Just ran: the instruction(s) before this stop";
+          return td;
+        })(),
+        el("td", "jt-muted", off ? hex(off.offset, 5) : ""),
+        el("td", "jt-muted", i.bytes.map((b) => hex(b, 2)).join(" ")),
+        ins,
+        this.explainCell(p, i, touched.get(i.addr), this.registerValues(i, recorded.get(i.addr), viewedIndex)),
+      );
+      tr.title = `${loc ? `${shortFile(loc.file)} line ${loc.line} · ` : ""}file offset ${off ? `0x${hex(off.offset, 5)}` : "—"} · bytes ${i.bytes.map((x) => hex(x, 2)).join(" ")}`;
+      if (loc) {
+        tr.onmouseenter = () => this.highlightSource(loc.file, loc.line);
+        tr.onmouseleave = () => this.highlightSource();
+      }
+      table.append(tr);
+    }
+    return table;
+  }
+
+  /**
+   * The explanation of an instruction, with the address it uses (an L32R constant, or the address
+   * a load/store touches) spelled out and linked to where it can be looked at.
+   */
+  /**
+   * The values of the registers an instruction uses, from a recorded stop at it: before it ran,
+   * and (when the next stop is one instruction later) what it changed.
+   */
+  private registerValues(i: Insn, k: number | undefined, viewedIndex: number): HTMLElement | undefined {
+    if (k === undefined) return undefined;
+    const regs = [...new Set(i.operands.match(/\ba(?:1[0-5]|[0-9])\b/g) ?? [])];
+    if (!regs.length) return undefined;
+    const state = this.states[k];
+    const val = (v: number) => {
+      const short = v < 0x10000 ? String(v) : `0x${hex(v)}`;
+      const means = this.describe(v);
+      return `${short}${means ? ` ${means}` : ""}`;
+    };
+    const box = el("div", "jt-asm-regs");
+    const when = k === viewedIndex ? "now, before it runs" : `at step ${state.n}, before it ran`;
+    box.append(el("span", "jt-muted", `${when}: `), regs.map((r) => `${r} = ${val(state.ar[Number(r.slice(1))])}`).join(" · "));
+    const next = this.states[k + 1];
+    if (next && k + 1 <= viewedIndex && next.stepped && next.reason === "one instruction ran") {
+      const changed = [...Array(16).keys()].filter((n) => next.ar[n] !== state.ar[n]);
+      if (changed.length) box.append(el("div", "", `then: ${changed.map((n) => `a${n} = ${val(next.ar[n])}`).join(" · ")}`));
+    }
+    return box;
+  }
+
+  private explainCell(p: Program, i: Insn, touches: number | undefined, regs?: HTMLElement): HTMLElement {
+    const td = el("td", "jt-asm-explain", i.explain);
+    if (regs) td.append(regs);
+    const value = i.literal !== undefined ? wordAt(p, i.literal) : undefined;
+    const addr = touches ?? (value !== undefined && this.addressMeaning(value) ? value : undefined);
+    if (touches !== undefined) {
+      const store = /^s/.test(i.mnemonic);
+      const meaning = this.addressMeaning(touches);
+      td.append(el("div", "jt-asm-note", `${store ? "Writes to" : "Reads"} 0x${hex(touches)}${meaning ? `: ${meaning.replace(/^the address of /, "")}` : ""}${regionAt(touches)?.kind === "peripheral" ? (store ? " — this changes what the hardware does" : " — the hardware's current state") : ""}.`));
+    }
+    if (addr !== undefined) {
+      const link = el("a", "jt-link", regionAt(addr)?.kind === "peripheral" ? "Show this register" : codeAt(p, addr) ? "Show this code" : "Show this memory");
+      link.onclick = () => this.showAddress(addr);
+      td.append(" ", link);
+    }
+    return td;
+  }
+
+  /** Mark a source line in the editor while an instruction of it is hovered (no argument: clear). */
+  private highlightSource(file?: string, line?: number): void {
+    if (this.asmHover && !this.asmHover.model.isDisposed()) this.asmHover.model.deltaDecorations(this.asmHover.ids, []);
+    this.asmHover = undefined;
+    if (!file || !line) return;
+    const model = this.host.sources().find((s) => s.file === file)?.model;
+    if (!model || line > model.getLineCount()) return;
+    if (this.host.editor.getModel() !== model) this.host.showFile(file);
+    this.asmHover = {
+      model,
+      ids: model.deltaDecorations([], [{ range: new monaco.Range(line, 1, line, 1), options: { isWholeLine: true, className: "jt-asm-source", overviewRuler: { color: "#4fc1ff", position: monaco.editor.OverviewRulerLane.Full } } }]),
+    };
+    this.host.editor.revealLineInCenterIfOutsideViewport(line, monaco.editor.ScrollType.Smooth);
+  }
+
   // ---- pins ----
 
   private pins?: { words: Map<number, number>; prev?: Map<number, number>; samples: PinSample[] };
@@ -2177,7 +2799,7 @@ export class JtagInspector {
       else if (viewedAt >= 0 && i > viewedAt) rect.classList.add("later");
       if (s.state !== undefined) {
         rect.classList.add("stop");
-        rect.addEventListener("click", () => this.viewState(this.states.findIndex((x) => x.n === s.state)));
+        (rect as unknown as { onclick: () => void }).onclick = () => this.viewState(this.states.findIndex((x) => x.n === s.state));
       }
       rect.setAttribute("x", String(120 - (samples.length - i) * width));
       rect.setAttribute("width", String(width - 0.4));
@@ -2252,14 +2874,13 @@ export class JtagInspector {
       const v = m?.get(g < 32 ? lo : hi);
       return v === undefined ? undefined : (v >>> (g & 31)) & 1;
     };
-    const table = el("table", "jt-table jt-pins");
+    const table = el("table", "jt-table jt-pins jt-fixed");
     const head = el("tr");
     for (const [h, title] of [
       ["GPIO", "Click a number for the pin's own configuration registers (IO MUX)"],
-      ["Connected to", "IO MUX function select (MCU_SEL), and for plain GPIO the GPIO matrix's output routing (FUNCn_OUT_SEL). Click a peripheral to see its registers"],
-      ["Direction", "Output: the chip drives the pin (GPIO_ENABLE). Input: its level is read (IO MUX FUN_IE). Plus the internal pull resistor (IO MUX FUN_PU/FUN_PD, about 45 kΩ)"],
-      ["Level", "Driven: what GPIO_OUT asks for. Reads: GPIO_IN, the level actually on the pin"],
+      ["Direction", "Output: the chip drives the pin (GPIO_ENABLE). Input: its level is read (IO MUX FUN_IE). Driven by a peripheral: through the GPIO matrix (FUNCn_OUT_SEL) or straight from the IO MUX (MCU_SEL); click its name for its registers. Plus the internal pull resistor (IO MUX FUN_PU/FUN_PD, about 45 kΩ)"],
       ["History", "The level at each read of the pins (each stop, or every Live values update), oldest left. Hover a sample for when it was taken, in CPU clock cycles"],
+      ["Level", "Driven: what GPIO_OUT asks for. Reads: GPIO_IN, the level actually on the pin"],
       ["Drive", "Output drive strength (IO MUX FUN_DRV)"], ["Note", ""],
     ]) {
       const th = el("th", "", h);
@@ -2291,9 +2912,10 @@ export class JtagInspector {
         connected = db.signals.out[String(sig)] ?? `signal ${sig}`;
         connectedTitle = `A peripheral output (signal ${sig}, ${connected}) is routed to this pin through the GPIO matrix.`;
       }
-      // Direction, with the pull resistor: "input, pull-up".
+      // Direction, with what drives the pin and its pull resistor: "output from RMT_SIG_OUT0", "input, pull-up".
       const pull = pu ? "pull-up" : pd ? "pull-down" : "";
-      const dir = [!viaMatrix ? `set by ${func}` : oe ? "output" : ie ? "input" : "off", pull].filter(Boolean).join(", ");
+      const peripheral = !viaMatrix ? func : connected !== "GPIO" ? connected : undefined;
+      const dirWord = !viaMatrix ? "set by" : oe ? (peripheral ? "output from" : "output") : ie ? "input" : "off";
       let level = "";
       if (oe && viaMatrix && (sig === 256 || sig === undefined)) level = `driven ${out ? "high" : "low"}`;
       else if (oe) level = "driven by the peripheral";
@@ -2304,22 +2926,25 @@ export class JtagInspector {
       const num = el("td", "jt-addr jt-link", String(g));
       num.title = `Show GPIO${g}'s pad register (IO MUX)`;
       num.onclick = () => this.openPeripheral(0x60009000, `GPIO${g}_`);
-      const conn = el("td");
-      const target = connected === "GPIO" ? { base: 0x60004000, filter: "", label: "the GPIO matrix" } : signalPeripheral(connected);
-      if (target) {
-        const a = el("a", "jt-link", connected);
-        a.onclick = () => this.openPeripheral(target.base, target.filter);
-        a.title = `${connectedTitle}\nClick to see the registers of ${target.label}${target.filter ? ` (${target.filter})` : ""}.`;
-        conn.append(a);
-      } else {
-        conn.textContent = connected;
-        conn.title = connectedTitle;
+      const dirCell = el("td");
+      dirCell.title = connectedTitle;
+      dirCell.append(dirWord);
+      if (peripheral) {
+        const target = signalPeripheral(peripheral);
+        dirCell.append(" ");
+        if (target) {
+          const a = el("a", "jt-link", peripheral);
+          a.onclick = () => this.openPeripheral(target.base, target.filter);
+          a.title = `${connectedTitle}\nClick to see the registers of ${target.label}${target.filter ? ` (${target.filter})` : ""}.`;
+          dirCell.append(a);
+        } else dirCell.append(peripheral);
       }
+      if (pull) dirCell.append(`, ${pull}`);
       const lvl = el("td", conflict ? "jt-warn" : "", conflict ? `${level} — it should read ${out ? "high" : "low"}: shorted, or overloaded?` : level || "—");
       lvl.prepend(el("span", `jt-dot ${(oe ? out : inp) ? "high" : "low"}`));
       const hist = el("td");
       hist.append(this.pinSparkline(g));
-      tr.append(num, conn, el("td", "", dir), lvl, hist,
+      tr.append(num, dirCell, hist, lvl,
         el("td", "jt-muted", mux === undefined || !oe ? "" : DRIVE_LABEL[(mux >>> 10) & 3]),
         el("td", "jt-muted", pinNote(g)));
       table.append(tr);

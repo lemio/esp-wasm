@@ -39,7 +39,8 @@ const LIB_SOURCE = /\.(c|cc|cpp|cxx|S)$/;
 // -fstandalone-debug: the full layout of every class the sketch uses, also of library classes
 // (clang otherwise only declares a class whose code is in another file, and the built-in
 // libraries are precompiled without debug info).
-const TRACE_FLAGS = ["-fsanitize-coverage=trace-pc", "-O0", "-gdwarf-4", "-fstandalone-debug"];
+const DEBUG_FLAGS = ["-O0", "-gdwarf-4", "-fstandalone-debug"];
+const TRACE_FLAGS = ["-fsanitize-coverage=trace-pc", ...DEBUG_FLAGS];
 const TRACE_RUNTIME = "__esp_wasm_trace.cpp";
 /** Libraries in Trace builds: debug info (types, variables) without changing how they're optimized. */
 const LIB_DEBUG_FLAGS = ["-gdwarf-4"];
@@ -124,8 +125,11 @@ export async function build(
   tc: Toolchain,
   userSources: SourceFile[],
   log: Log,
-  { defines = [], trace = false, libraries = [] }: BuildOptions = {},
+  { defines = [], trace: traceRequested = false, debugInfo = false, libraries = [] }: BuildOptions = {},
 ): Promise<BuildResult> {
+  // `trace` from here on: instrumented. With debugInfo the code is left as written.
+  const trace = traceRequested && !debugInfo;
+  const debug = trace || debugInfo;
   // The trace runtime is compiled as-is (not instrumented) next to the user's code.
   const sources = trace ? [...userSources, { path: TRACE_RUNTIME, content: traceRuntime }] : userSources;
   const start = performance.now();
@@ -183,7 +187,7 @@ export async function build(
       ...langFlags,
       ...defines.map((d) => `-D${d}`),
       ...libIncludes,
-      ...(trace && src.path !== TRACE_RUNTIME ? TRACE_FLAGS : []),
+      ...(trace && src.path !== TRACE_RUNTIME ? TRACE_FLAGS : debugInfo ? DEBUG_FLAGS : []),
       // The runtime takes debugger commands over Serial in Arduino sketches.
       ...(trace && src.path === TRACE_RUNTIME && isSketch ? ["-DESP_WASM_ARDUINO=1"] : []),
       "-fno-color-diagnostics",
@@ -202,7 +206,7 @@ export async function build(
   // library version, toolchain version, file and flags.
   // Trace builds give libraries debug info too (it doesn't change their code): the inspector then
   // knows the layout of their classes, like the Adafruit_NeoPixel object a sketch declares.
-  const libDebug = trace ? LIB_DEBUG_FLAGS : [];
+  const libDebug = debug ? LIB_DEBUG_FLAGS : [];
   const flagsHash = hash([tc.manifest.version, ...defines, ...libIncludes, ...libDebug].join(" "));
   for (const lib of libraries) {
     const sources = lib.files.filter((x) => LIB_SOURCE.test(x.path));
@@ -256,7 +260,7 @@ export async function build(
   const elf = vfs.readFile(elfPath);
   if (!elf) throw new BuildError("Linker produced no output");
   const app = await elfToImage(elf, tc.manifest.image);
-  const lineTable = trace
+  const lineTable = debug
     ? buildLineTable(parseElf(elf).sections, elf, (f) => f.startsWith("/src/") && !f.endsWith(TRACE_RUNTIME))
     : undefined;
   // What each class member is for, from the comments in the sketch's and the libraries' source
@@ -267,7 +271,8 @@ export async function build(
   }
 
   return {
-    ...(import.meta.env.DEV ? { elf } : {}),
+    elf,
+    instrumented: trace,
     parts: [
       { name: "bootloader.bin", address: FLASH_OFFSETS.bootloader, data: tc.bootloader },
       { name: "partition-table.bin", address: FLASH_OFFSETS.partitionTable, data: tc.partitionTable },

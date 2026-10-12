@@ -50,6 +50,8 @@ const DSR_EXECEXCEPTION = 1 << 1;
 const DSR_EXECBUSY = 1 << 2;
 const DSR_EXECOVERRUN = 1 << 3;
 const DSR_STOPPED = 1 << 4;
+/** The core's debug module is powered: the core exists and runs (not held in reset). */
+const DSR_POWERED = 1 << 31;
 
 // Special registers (SR numbers).
 const SR_DDR = 104;
@@ -195,6 +197,10 @@ export class XtensaOcd implements DebugTarget {
 
   get core(): number {
     return this.cur;
+  }
+
+  get haltedCores(): number[] {
+    return this.cores.flatMap((c, i) => (c.halted ? [i] : []));
   }
 
   /** Point register, memory and step operations at this core. */
@@ -615,11 +621,13 @@ export class XtensaOcd implements DebugTarget {
   /** Raise the debug interrupt on these cores and wait (up to ~1 s) for all of them to stop. */
   private async haltCores(which: number[]): Promise<void> {
     for (const i of which) await this.onCore(i, () => this.dbg(NAR_DCRSET, DCR_ENABLEOCD | DCR_DEBUGINTERRUPT));
+    const lastDsr = new Map<number, number>();
     for (const deadline = Date.now() + 1000; ;) {
       let all = true;
       for (const i of which) {
         if (this.cores[i].halted) continue;
         const dsr = await this.onCore(i, () => this.dbgRead(NAR_DSR));
+        lastDsr.set(i, dsr);
         if (dsr & DSR_STOPPED) {
           this.cores[i].halted = true;
           await this.onCore(i, () => this.dbg(NAR_DCRCLR, DCR_DEBUGINTERRUPT));
@@ -628,6 +636,12 @@ export class XtensaOcd implements DebugTarget {
       if (all) return;
       if (Date.now() > deadline) {
         const stuck = which.filter((i) => !this.cores[i].halted);
+        // A core whose debug module is unpowered is held in reset (core 1, while the boot ROM
+        // runs after a restart): it runs nothing, so there's nothing to stop. Leave it out.
+        if (this.cores.some((c) => c.halted) && stuck.every((i) => !((lastDsr.get(i) ?? 0) & DSR_POWERED))) {
+          this.trace?.(`OCD core ${stuck.join(", ")} is held in reset; not stopping it`);
+          return;
+        }
         throw new Error(`Core ${stuck.join(" and ")} didn't stop (${this.cores.length} cores on the chain, IDCODE ${hex(this.idcode)})`);
       }
       await new Promise((r) => setTimeout(r, 5));

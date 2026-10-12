@@ -48,6 +48,8 @@ export class TraceFilter {
 export type DebugState = "off" | "running" | "stopped";
 
 /** A session with a Trace build on the chip. */
+const BREAKPOINTS_KEY = "esp-wasm:breakpoints";
+
 export class Debugger {
   private table?: LineTable;
   private canControl = false; // the runtime takes commands (Arduino sketches)
@@ -90,6 +92,12 @@ export class Debugger {
       if (file && t.position) this.toggleBreakpoint(file, t.position.lineNumber);
     });
     editor.onDidChangeModel(() => this.renderBreakpoints());
+    // Breakpoints survive a page reload (the chip may still have them programmed).
+    try {
+      const saved = JSON.parse(localStorage.getItem(BREAKPOINTS_KEY) ?? "{}") as Record<string, number[]>;
+      for (const [file, lines] of Object.entries(saved)) if (lines.length) this.breakpoints.set(file, new Set(lines));
+    } catch { /* nothing saved */ }
+    this.renderBreakpoints();
   }
 
   /** Can pause/step/breakpoints be used right now? */
@@ -208,6 +216,9 @@ export class Debugger {
     this.renderBreakpoints();
     void this.sendBreakpoints();
     this.onBreakpointsChanged?.();
+    try {
+      localStorage.setItem(BREAKPOINTS_KEY, JSON.stringify(Object.fromEntries([...this.breakpoints].map(([f, l]) => [f, [...l]]))));
+    } catch { /* storage unavailable */ }
   }
 
   /** Start address of the code of every breakpoint line, for hardware breakpoints. */
