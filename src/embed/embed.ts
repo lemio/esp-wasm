@@ -146,6 +146,59 @@ const monitor = new SerialMonitor({
 debug = new Debugger(editor, (file) => (file === "/src/sketch.ino" ? model : undefined), (m) => (m === model ? "/src/sketch.ino" : undefined),
   (command) => monitor.write(command), () => {});
 let lineTable: import("../debug/line-table").LineTable | undefined;
+// ---- one board, many embeds: a serial port can only be open in one place at a time. The embeds on a page
+// (all from this origin, so in every tab too) share it: before uploading, an embed asks the others to let go.
+const usb = "BroadcastChannel" in window ? new BroadcastChannel("esp-wasm-usb") : null;
+const me = `${projectId}:${Math.random().toString(36).slice(2, 8)}`;
+const holding = () => monitor.running || flasher.connected;
+/** Let go of the board, because another embed wants it. */
+async function release() {
+  await monitor.stop();
+  await flasher.disconnect().catch(() => {});
+  debug.detach();
+  btnDisconnect.hidden = btnReset.hidden = true;
+  setStatus("idle", "The board is now used by another example on this page");
+  resize();
+}
+usb?.addEventListener("message", (e) => {
+  const m = e.data;
+  if (!m || m.from === me) return;
+  if (m.type === "claim") {
+    // mid-upload: say so, and keep the board; otherwise give it up
+    if (busy) { usb.postMessage({ type: "ack", to: m.from, from: me, busy: true }); return; }
+    const had = holding();
+    usb.postMessage({ type: "ack", to: m.from, from: me, holding: had });
+    if (had) void release().then(() => usb.postMessage({ type: "released", to: m.from, from: me }));
+  }
+});
+/** Ask the other embeds for the board; resolves false if one of them is in the middle of an upload. */
+function claimBoard(): Promise<boolean> {
+  if (!usb) return Promise.resolve(true);
+  return new Promise((resolve) => {
+    const waiting = new Set<string>(); let refused = false, settled = false;
+    const done = (ok: boolean) => { if (settled) return; settled = true; usb.removeEventListener("message", on); resolve(ok); };
+    const on = (e: MessageEvent) => {
+      const m = e.data; if (!m || m.to !== me) return;
+      if (m.type === "ack" && m.busy) refused = true;
+      if (m.type === "ack" && m.holding) waiting.add(m.from);
+      if (m.type === "released") { waiting.delete(m.from); if (!waiting.size) setTimeout(() => done(true), 250); }   // the port needs a moment to close
+    };
+    usb.addEventListener("message", on);
+    usb.postMessage({ type: "claim", from: me });
+    // replies come within a few ms; whoever holds the port answers "released" once it is closed
+    setTimeout(() => { if (refused) done(false); else if (!waiting.size) done(true); }, 150);
+    setTimeout(() => done(!refused), 3000);
+  });
+}
+/** The board's port: the one this page already granted (shared by every embed), else ask. */
+async function boardPort(): Promise<SerialPort> {
+  if (!flasher.currentPort && "serial" in navigator) {
+    const granted = await navigator.serial.getPorts();
+    if (granted.length === 1) flasher.usePort(granted[0]);
+  }
+  return flasher.pickPort();
+}
+
 let busy = false;
 const refresh = () => {
   btnCheck.disabled = btnDownload.disabled = btnReset.disabled = busy;
@@ -191,11 +244,16 @@ async function build(forBoard = false): Promise<FlashPart[] | undefined> {
 
 async function upload() {
   try {
-    // Chrome only shows the port picker during the click: pick it before compiling.
+    // Chrome only shows the port picker during the click: pick it before compiling (no picker if it was chosen before).
     setStatus("uploading", "Choose the board's USB port…");
-    await flasher.pickPort();
+    await boardPort();
   } catch {
     setStatus("idle", "No board chosen");
+    return;
+  }
+  // another example on the page may have the board open: ask it to let go
+  if (!holding() && !(await claimBoard())) {
+    setStatus("idle", "Another example is uploading — try again in a moment");
     return;
   }
   const parts = await build(true);
