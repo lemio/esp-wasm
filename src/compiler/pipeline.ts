@@ -125,7 +125,7 @@ export async function build(
   tc: Toolchain,
   userSources: SourceFile[],
   log: Log,
-  { defines = [], trace: traceRequested = false, debugInfo = false, libraries = [] }: BuildOptions = {},
+  { defines = [], trace: traceRequested = false, debugInfo = false, libraries = [], boardHeader }: BuildOptions = {},
 ): Promise<BuildResult> {
   // `trace` from here on: instrumented. With debugInfo the code is left as written.
   const trace = traceRequested && !debugInfo;
@@ -150,6 +150,7 @@ export async function build(
     `-idirafter${COMPAT_DIR}`,
   ];
   const isSketch = sources.some((s) => s.path.endsWith(".ino"));
+  if (boardHeader) vfs.writeFile("board/esp_wasm_board.h", boardHeader);
   for (const s of sources) {
     // Sketches get Arduino-style prototypes, so functions can be used before they're defined.
     let content = s.path.endsWith(".ino") ? addPrototypes(s.content, `/src/${s.path}`) : s.content;
@@ -178,7 +179,7 @@ export async function build(
     const cxx = [...cxxflags, "-Wno-c++11-narrowing"];
     const langFlags = ext === "c" ? cflags
       : ext === "s" ? []
-      : ext === "ino" ? [...cxx, "-x", "c++", "-include", "Arduino.h"]
+      : ext === "ino" ? [...cxx, "-x", "c++", "-include", "Arduino.h", ...(boardHeader ? ["-include", "/board/esp_wasm_board.h"] : [])]
       : cxx;
     if (src.path !== TRACE_RUNTIME) log(`CC ${src.path}`, "muted");
     const res = await runWasi(tc.clang, [

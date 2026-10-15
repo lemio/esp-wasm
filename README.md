@@ -17,6 +17,7 @@ Web Serial. No backend: the site is static files. Needs Chrome or Edge (Web Seri
 | **Flash** | One click: compile, enter download mode (DTR/RTS), flash, reset, serial monitor (115200 baud, ESP-IDF colours). The port is remembered. |
 | **Arduino / ESP-IDF** | Toolbar switch. Sketches (`setup()`/`loop()`) use arduino-esp32 3.3.12 on ESP-IDF 6.0.3. ESP-IDF programs (`app_main()`) are plain C. Each mode keeps its own code. |
 | **Libraries** | Built in: the core libraries plus 15 popular ones. A missing header shows matching [PlatformIO](https://registry.platformio.org) libraries: **Install** adds one with its dependencies, and the build runs again. |
+| **Completions** | The Arduino-ESP32 API as you type: functions with their parameters, constants, `Serial.`/`Wire.`/`WiFi.` methods (inherited ones too), parameter hints, and plain-language notes on hover. Read from the sysroot's headers by `toolchain/arduino-api.mjs` (run it again after a new toolchain). |
 | **Examples** | 553 examples of the core and libraries for this configuration, searchable by title and code. |
 | **Trace** | Highlights the running line, with a fading trail of recent lines. Pause, step over/into/out, breakpoints. |
 | **Reset / Disconnect** | Restart the chip, or release the serial port for another program. |
@@ -129,6 +130,54 @@ explains what it shows in plain language instead of raw hex.
 
 Tested on an ESP32-S3-DevKitC-1 with Chrome on macOS, with Arduino sketches and ESP-IDF
 programs. On Windows the JTAG interface needs the WinUSB driver.
+
+## Embedding projects in other pages
+
+Tutorials and documentation can put editable, uploadable projects straight into a page. Load
+`embed.js` once, then write each project as markup:
+
+```html
+<script src="https://lemio.github.io/esp-wasm/embed.js" defer></script>
+
+<Project>
+  <p>You can read sensors, switches and other parts. The easiest way is <code>digitalRead</code>.</p>
+  <Arduino board="esp32-s3">
+int pin = 1;
+void setup() {
+  pinMode(pin, INPUT_PULLUP);
+}
+void loop() {
+}
+  </Arduino>
+  <Diagram>…</Diagram>
+</Project>
+```
+
+- **Each `<Arduino>`** becomes an editor with an **Upload** button (compile, flash over Web
+  Serial, then show what the sketch prints): an iframe of `embed.html`, created when it scrolls
+  into view. `<Project>` and `<Diagram>` are left to the page to lay out.
+- **More buttons** only where the tag asks: `buttons="upload check download"`. *Check* (or
+  *build*) compiles without a board; *Download* saves the whole firmware as one `sketch.bin`
+  to flash at 0x0.
+- **Line highlighting** is on: Upload makes a Trace build, so the running line glows in the
+  editor with a fading trail (`trace="off"` turns it off; in a Trace build `Serial.read()`
+  receives nothing, so sketches that read serial input want it off).
+- **After an upload** a reset icon restarts the sketch from `setup()` (leave it out with
+  `reset="off"`, or with a `buttons` list that doesn't name `reset`), and a disconnect icon
+  frees the USB port. The output shows only what the
+  sketch prints (the chip's boot messages and ESP-IDF's own log lines are left out); the build and upload log is behind
+  *Details*, which appears when something fails.
+- **Attributes:** `board` (`esp32-s3`, or `schematik`, where `LED_BUILTIN` is its blue LED on
+  GPIO40), `id` (edits are kept per id, with a *Reset code* link back to the original), `theme`
+  (`light` or `dark`; default follows the system).
+- **Code with `<` in it** (`#include <Wire.h>`, `a<b`): the HTML parser changes it. On pages served
+  over http(s) the loader reads the page's own source instead; from `file://` it repairs the usual
+  header names. Always safe: `<Arduino><script type="text/arduino">…</script></Arduino>`.
+- **Driving it from the page:** `window.EspWasm.check(el)`, `.upload(el)`, `.setCode(el, code)`.
+  The `<Arduino>` element fires `esp-wasm:status` (`{ state, text }`: building, built, failed,
+  uploading, running, error) and `esp-wasm:serial` (`{ text }`).
+- **Boards** are defined in [src/embed/boards.ts](src/embed/boards.ts): a header included right
+  after `Arduino.h` (`BuildOptions.boardHeader`), so line numbers in errors stay the sketch's own.
 
 ## Develop
 

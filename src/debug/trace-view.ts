@@ -11,6 +11,8 @@ import {
 const MARKER = /\x1b_esp-wasm:([a-z]+)=([0-9a-z,]+)\x1b\\/g;
 const PREFIX = "\x1b_esp-wasm:";
 const MAX_MARKER = 600; // a "hits" list of up to 48 addresses
+/** The start of a marker, cut off: ESC _ and any beginning of "esp-wasm:key=value", not followed by its end. */
+const BROKEN_MARKER = /\x1b_(?:esp-wasm:[a-z]*(?:=[0-9a-z,]*)?|e(?:s(?:p(?:-(?:w(?:a(?:s(?:m)?)?)?)?)?)?)?)(?!\x1b\\)/g;
 
 /** How long a line keeps glowing after it last ran, and in how many steps it fades. */
 const TRAIL_MS = 1500;
@@ -35,13 +37,16 @@ export class TraceFilter {
     let hold = -1;
     const start = text.lastIndexOf("\x1b_");
     const tail = start >= 0 ? text.slice(start) : "";
-    if (tail && tail.length < MAX_MARKER && (PREFIX.startsWith(tail) || tail.startsWith(PREFIX))) hold = start;
+    // only while it still looks like a marker: after a reset the rest never comes, and other text follows instead
+    if (tail && tail.length < MAX_MARKER && (PREFIX.startsWith(tail) || /^\x1b_esp-wasm:[a-z]*(?:=[0-9a-z,]*)?\x1b?$/.test(tail))) hold = start;
     else if (text.endsWith("\x1b")) hold = text.length - 1;
     if (hold >= 0) {
       this.pending = text.slice(hold);
       text = text.slice(0, hold);
     }
-    return text;
+    // A marker the chip never finished (it was reset halfway, e.g. "ESC _esp-w" then "ESP-ROM:…"): drop the
+    // fragment, so it doesn't end up glued to the boot log.
+    return text.replace(BROKEN_MARKER, "");
   }
 }
 

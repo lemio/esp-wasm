@@ -1,0 +1,30 @@
+:root { color-scheme: light; --bg: #fff; --ink: #1a1a1a; --ink-2: #6e6e6a; --ink-3: #d6d5d0; --accent: #1a1a1a; --ok: #2b8a3e; --err: #c92a2a; --warn: #b07a00; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { color-scheme: dark; --bg: #161616; --ink: #e8e7e3; --ink-2: #9a9994; --ink-3: #3a3a36; --accent: #e8e7e3; --ok: #69db7c; --err: #ff8787; --warn: #ffd43b; }
+}
+:root[data-theme="dark"] { color-scheme: dark; --bg: #161616; --ink: #e8e7e3; --ink-2: #9a9994; --ink-3: #3a3a36; --accent: #e8e7e3; --ok: #69db7c; --err: #ff8787; --warn: #ffd43b; }
+[hidden] { display: none !important; }
+html, body { margin: 0; background: var(--bg); color: var(--ink); font: 13px/1.4 system-ui, sans-serif; overflow: hidden; }
+.embed { display: flex; flex-direction: column; border: 1px solid var(--ink-3); }
+.editor { min-height: 120px; }
+.bar { display: flex; align-items: center; gap: 8px; padding: 8px; border-top: 1px solid var(--ink-3); }
+button { font: inherit; border-radius: 0; cursor: pointer; padding: 5px 12px; }
+button.primary { background: var(--accent); color: var(--bg); border: 1px solid var(--accent); }
+button.secondary { background: none; color: var(--ink); border: 1px solid var(--ink-3); }
+button.link { background: none; border: 0; padding: 0; color: var(--ink-2); text-decoration: underline; }
+button.icon { background: none; border: 0; padding: 4px; color: var(--ink-2); display: inline-flex; }
+button.icon:hover { color: var(--ink); }
+.output.log { color: var(--ink-2); }
+button:disabled { opacity: .4; cursor: default; }
+.status { flex: 1; color: var(--ink-2); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.status.ok { color: var(--ok); } .status.error { color: var(--err); }
+.output { max-height: 180px; overflow: auto; border-top: 1px solid var(--ink-3); padding: 6px 8px; font: 12px/1.45 ui-monospace, "SF Mono", Menlo, monospace; white-space: pre-wrap; }
+/* Console levels (ui/console.ts) */
+.output .error { color: var(--err); } .output .ok { color: var(--ok); } .output .warn { color: var(--warn); } .output .muted { color: var(--ink-2); }
+/* Line highlighting (Trace builds): the running line and a fading trail, as in the IDE */
+.exec-line { background: rgba(215, 186, 125, .32); }
+.exec-line.stopped { background: rgba(226, 192, 141, .36); outline: 1px solid rgba(226, 192, 141, .6); }
+.trail-1 { background: rgba(215, 186, 125, .2); } .trail-2 { background: rgba(215, 186, 125, .13); }
+.trail-3 { background: rgba(215, 186, 125, .08); } .trail-4 { background: rgba(215, 186, 125, .04); }
+.exec-glyph { background: #d7ba7d; clip-path: polygon(30% 20%, 80% 50%, 30% 80%); }
+.bp-glyph { background: #e51400; border-radius: 50%; width: 10px !important; height: 10px !important; margin-left: 4px; margin-top: 5px; }

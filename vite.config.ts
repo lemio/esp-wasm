@@ -16,8 +16,12 @@ export default defineConfig({
     watch: { ignored: ["**/toolchain/**"] },
   },
   // Only scan the app for dependencies, not HTML files deep inside toolchain/out.
-  optimizeDeps: { entries: ["index.html"] },
+  optimizeDeps: { entries: ["index.html", "embed.html"] },
   preview: { headers: crossOriginIsolation },
   worker: { format: "es" },
-  build: { target: "es2022" },
+  build: {
+    target: "es2022",
+    // The IDE, and the embeddable project editor that public/embed.js puts into other pages.
+    rollupOptions: { input: { main: "index.html", embed: "embed.html" } },
+  },
 });

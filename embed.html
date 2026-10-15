@@ -1,0 +1,34 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="icon" href="data:," />
+    <title>esp-wasm embed</title>
+    <script type="module" src="./src/embed/embed.ts"></script>
+  </head>
+  <body>
+    <!-- One project in someone else's page: an editor, Check and Upload, and what the board prints. -->
+    <div class="embed">
+      <div id="editor" class="editor"></div>
+      <div class="bar">
+        <!-- Upload is always there; the others only when the page's <Arduino buttons="…"> names them -->
+        <button id="btn-upload" class="primary" title="Compile and upload to the board over USB">Upload</button>
+        <button id="btn-check" class="secondary" hidden title="Compile, to see if the code is right (no board needed)">Check</button>
+        <button id="btn-download" class="secondary" hidden title="Compile and save the firmware as one .bin file (flash it at 0x0)">Download</button>
+        <button id="btn-reset" class="icon" hidden title="Reset the board: the sketch starts again from setup()" aria-label="Reset the board">
+          <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><path d="M15.5 10a5.5 5.5 0 1 1-1.6-3.9" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M14.5 2.5v4h-4" fill="none" stroke="currentColor" stroke-width="1.6"/></svg>
+        </button>
+        <button id="btn-disconnect" class="icon" hidden title="Disconnect the board (frees its USB port)" aria-label="Disconnect the board">
+          <svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><path d="M7 2v4M13 2v4M5 6h10v3a5 5 0 0 1-10 0V6zM10 14v4" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M3 3l14 14" stroke="currentColor" stroke-width="1.6"/></svg>
+        </button>
+        <span id="status" class="status" aria-live="polite"></span>
+        <button id="btn-details" class="link" hidden aria-expanded="false">Details</button>
+        <button id="btn-revert" class="link" hidden title="Go back to the example's code">Reset code</button>
+      </div>
+      <!-- what the sketch prints; the build and upload log only on request (Details) -->
+      <div id="serial" class="output" hidden aria-label="Serial output"></div>
+      <div id="log" class="output log" hidden aria-label="Build and upload log"></div>
+    </div>
+  </body>
+</html>

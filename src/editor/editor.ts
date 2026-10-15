@@ -1,11 +1,13 @@
 import * as monaco from "monaco-editor";
 import EditorWorker from "monaco-editor/editor/editor.worker?worker";
 import type { Diagnostic } from "../compiler/types";
+import { registerArduinoLanguage } from "./arduino-completions";
 
 // C/C++ only has Monarch highlighting, so the base editor worker is enough.
 self.MonacoEnvironment = { getWorker: () => new EditorWorker() };
 
-export function createEditor(container: HTMLElement) {
+export function createEditor(container: HTMLElement, options: monaco.editor.IStandaloneEditorConstructionOptions = {}) {
+  registerArduinoLanguage();   // completions, parameter hints and hover for the Arduino-ESP32 API
   return monaco.editor.create(container, {
     model: null,
     theme: "vs-dark",
@@ -15,6 +17,7 @@ export function createEditor(container: HTMLElement) {
     minimap: { enabled: true, renderCharacters: true, showSlider: "mouseover" },
     scrollBeyondLastLine: false,
     glyphMargin: true, // line tracing arrow
+    ...options, // e.g. the embed: light theme, no minimap
   });
 }
 
