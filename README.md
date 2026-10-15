@@ -127,6 +127,9 @@ void loop() {
 - **Attributes:** `board` (`esp32-s3`, or `schematik`, where `LED_BUILTIN` is its blue LED on
   GPIO40), `id` (edits are kept per id, with a *Reset code* link back to the original), `theme`
   (`light` or `dark`; default follows the system).
+- **One board, many projects:** every embed on a page (and in other tabs) shares the board. Upload
+  asks whichever embed has the port open to let go first, and reuses the port this page was
+  already given, so the port picker only appears once.
 - **Code with `<` in it** (`#include <Wire.h>`, `a<b`): the HTML parser changes it. On pages served
   over http(s) the loader reads the page's own source instead; from `file://` it repairs the usual
   header names. Always safe: `<Arduino><script type="text/arduino">…</script></Arduino>`.
