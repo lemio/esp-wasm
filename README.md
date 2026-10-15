@@ -86,7 +86,50 @@ Tick **Trace** and flash. The debugger bar works with the usual keys:
   - In a Trace build, `Serial.read()` doesn't receive data, because the debugger owns
     the serial input.
   - Code in interrupts is highlighted but never paused.
-  - Trace builds use `-Og`, so they're larger and slower.
+  - Trace builds use `-O0` and add a hook to every statement, so they're larger and slower.
+
+## Inspect (hardware debugging over USB-JTAG)
+
+**Inspect** opens a DevTools-style panel that talks to the ESP32-S3's built-in USB-JTAG
+(WebUSB, Chrome/Edge; no extra hardware, use the board's native USB port). With the panel
+open, **Flash** builds with full debug info (`-O0 -gdwarf-4`, no Trace hooks), then the
+inspector connects by itself. It's written for students who don't know the ESP32-S3: it
+explains what it shows in plain language instead of raw hex.
+
+- **In the editor**:
+  - The line about to run is highlighted, and the line that just ran is marked.
+  - Variable values appear in gray after the line.
+  - Gutter breakpoints become hardware breakpoints (two available).
+- **Stepping**:
+  - Pause, Continue, Next line, Step into and Next instruction, on both CPU cores.
+  - **Auto-step** steps on its own (by line, step over, by instruction or from breakpoint
+    to breakpoint) and records every stop.
+  - The recording slider replays recorded stops, with their variables, registers and pins.
+  - "Next line" from another task (the idle task, while your code waits in `delay()` or
+    `vTaskDelay()`) runs to where your code continues.
+- **Tabs**:
+  - **Variables**: locals and globals, with objects readable member by member. Library
+    classes are explained from their source comments; Adafruit_NeoPixel, for example, is
+    decoded into LEDs, pin, brightness and colours.
+  - **Call stack**: the chain of calls on each core.
+  - **Pins**: each GPIO's level, a history sparkline (hover for the time in clock
+    cycles), its direction with pull resistors, and the peripheral signal routed to it.
+  - **Program**: where `app.bin` sits in flash, with readable disassembly. It shows
+    register values next to the instructions and hover-highlights the matching source line.
+  - **Registers**: the CPU registers, with their history.
+  - **Memory**: one search over every peripheral register, its description (from the
+    Technical Reference Manual) and your variables. Registers whose read has a side effect
+    (FIFOs) are never read.
+  - **History**: every stop and value change.
+- **Live values**: short pauses (about 50 ms) to refresh values while the program runs. The
+  chip's watchdogs are held off while it's paused.
+- **Crashes** are detected and explained from the panic message on the serial monitor;
+  **Restart** resets the chip over JTAG.
+- **A page reload** keeps the panel's layout and tab, your breakpoints, the last build and
+  the serial monitor. The inspector reconnects without interrupting the program.
+
+Tested on an ESP32-S3-DevKitC-1 with Chrome on macOS, with Arduino sketches and ESP-IDF
+programs. On Windows the JTAG interface needs the WinUSB driver.
 
 ## Embedding projects in other pages
 

@@ -111,7 +111,10 @@ export class Flasher {
     }
     // Reuse the previous port if it's still plugged in. A native-USB S3
     // re-enumerates on reset, which can give it a new SerialPort object.
-    if (this.port && (await navigator.serial.getPorts()).includes(this.port)) return this.port;
+    const granted = await navigator.serial.getPorts();
+    if (this.port && granted.includes(this.port)) return this.port;
+    // After a page reload: the one port this page was allowed before.
+    if (!this.port && granted.length === 1) return (this.port = granted[0]);
     // No VID filter: this has to work with the native USB-Serial/JTAG (0x303A)
     // as well as CP210x/CH34x bridges on DevKits.
     this.port = await navigator.serial.requestPort();

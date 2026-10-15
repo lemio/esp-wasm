@@ -3,13 +3,16 @@
  *  - "libraries": installed libraries, their sources stored gzip-compressed
  *  - "objects":   compiled library objects, gzip-compressed, so a library is
  *                 compiled once rather than once per session
+ *  - "builds":    the last build's debug info (line table, ELF, app.bin), so the
+ *                 inspector still knows the program after a page reload
  * IndexedDB rather than localStorage: localStorage holds ~5 MB of strings, too
  * little for libraries like NimBLE-Arduino.
  */
 const DB = "esp-wasm";
-const VERSION = 2;
+const VERSION = 3;
 export const LIBRARIES = "libraries";
 export const OBJECTS = "objects";
+export const BUILDS = "builds";
 
 function open(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -18,6 +21,7 @@ function open(): Promise<IDBDatabase> {
       const db = req.result;
       if (!db.objectStoreNames.contains(LIBRARIES)) db.createObjectStore(LIBRARIES, { keyPath: "id" });
       if (!db.objectStoreNames.contains(OBJECTS)) db.createObjectStore(OBJECTS);
+      if (!db.objectStoreNames.contains(BUILDS)) db.createObjectStore(BUILDS);
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);

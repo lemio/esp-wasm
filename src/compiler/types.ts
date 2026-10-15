@@ -6,6 +6,11 @@ export interface BuildOptions {
   defines?: string[];
   /** Line tracing: instrument the user's code so the running line can be shown. */
   trace?: boolean;
+  /**
+   * For the JTAG inspector: the user's code unoptimized with full debug info, and no
+   * instrumentation (it reads everything from the chip). Takes precedence over `trace`.
+   */
+  debugInfo?: boolean;
   /** Libraries the user installed (from the PlatformIO registry), compiled with the sketch. */
   libraries?: BuildLibrary[];
   /**
@@ -50,6 +55,10 @@ export interface BuildResult {
   diagnostics: Diagnostic[];
   elfSize: number;
   durationMs: number;
+  /** The linked ELF (for the inspector's Program view: disassembly, symbols, sections). */
+  elf?: Uint8Array;
+  /** The user's code calls the trace hooks (a Trace build without `debugInfo`). */
+  instrumented: boolean;
 }
 
 export type LogLevel = "info" | "error" | "ok" | "muted";
