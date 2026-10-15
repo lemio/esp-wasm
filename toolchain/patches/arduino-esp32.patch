@@ -1,3 +1,24 @@
+diff --git a/cores/esp32/esp32-hal-gpio.c b/cores/esp32/esp32-hal-gpio.c
+index 15fbe93b8..94889a6d9 100644
+--- a/cores/esp32/esp32-hal-gpio.c
++++ b/cores/esp32/esp32-hal-gpio.c
+@@ -29,8 +29,16 @@
+ 
+ // It fixes lack of pin definition for S3 and for any future SoC
+ // this function works for ESP32, ESP32-S2 and ESP32-S3 - including the C3, it will return -1 for any pin
++// ESP-IDF 6 removed SOC_TOUCH_SENSOR_NUM; derive it as esp32-hal-touch-ng.c does.
++#if !defined(SOC_TOUCH_SENSOR_NUM) && SOC_TOUCH_SENSOR_SUPPORTED
++#define SOC_TOUCH_SENSOR_NUM (SOC_TOUCH_MAX_CHAN_ID + 1)
++#endif
+ #if SOC_TOUCH_SENSOR_NUM > 0
++#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
++#include "hal/touch_sensor_periph.h"
++#else
+ #include "soc/touch_sensor_periph.h"
++#endif
+ 
+ int8_t digitalPinToTouchChannel(uint8_t pin) {
+   if (pin < SOC_GPIO_PIN_COUNT) {
 diff --git a/cores/esp32/esp32-hal-rmt.c b/cores/esp32/esp32-hal-rmt.c
 index 184cd0abf..8f67d0c3a 100644
 --- a/cores/esp32/esp32-hal-rmt.c
@@ -59,3 +80,19 @@ index 184cd0abf..8f67d0c3a 100644
    RMT_MUTEX_UNLOCK(bus);
    return retCode;
  }
+diff --git a/libraries/BLE/src/BLEService.cpp b/libraries/BLE/src/BLEService.cpp
+index a897e0bbd..f43240ceb 100644
+--- a/libraries/BLE/src/BLEService.cpp
++++ b/libraries/BLE/src/BLEService.cpp
+@@ -264,7 +264,10 @@ void BLEService::addCharacteristic(BLECharacteristic *pCharacteristic) {
+   }
+ 
+ #if defined(CONFIG_NIMBLE_ENABLED)
+-  if (pExisting != nullptr) {
++  // esp-wasm: only re-adding the *same* (removed) characteristic reuses it. A
++  // different one with the same UUID (HID has several 0x2a4d reports) must be
++  // added too, or it never gets a service and notify() on it crashes.
++  if (pExisting == pCharacteristic) {
+     pExisting->m_removed = 0;
+   } else
+ #endif

@@ -1,0 +1,103 @@
+diff --git a/BleKeyboard.cpp b/BleKeyboard.cpp
+index 0d043f4..f99bc82 100644
+--- a/BleKeyboard.cpp
++++ b/BleKeyboard.cpp
+@@ -13,7 +13,7 @@
+ #include "BLEHIDDevice.h"
+ #endif // USE_NIMBLE
+ #include "HIDTypes.h"
+-#include <driver/adc.h>
++// esp-wasm: <driver/adc.h> (unused) was removed in ESP-IDF 6.
+ #include "sdkconfig.h"
+ 
+ 
+@@ -103,7 +103,8 @@ BleKeyboard::BleKeyboard(std::string deviceName, std::string deviceManufacturer,
+ 
+ void BleKeyboard::begin(void)
+ {
+-  BLEDevice::init(deviceName);
++  // esp-wasm: arduino-esp32 3.x takes String, not std::string.
++  BLEDevice::init(String(deviceName.c_str()));
+   BLEServer* pServer = BLEDevice::createServer();
+   pServer->setCallbacks(this);
+ 
+@@ -114,7 +115,7 @@ void BleKeyboard::begin(void)
+ 
+   outputKeyboard->setCallbacks(this);
+ 
+-  hid->manufacturer()->setValue(deviceManufacturer);
++  hid->manufacturer()->setValue(String(deviceManufacturer.c_str()));
+ 
+   hid->pnp(0x02, vid, pid, version);
+   hid->hidInfo(0x00, 0x01);
+@@ -468,6 +469,7 @@ void BleKeyboard::releaseAll(void)
+     _mediaKeyReport[0] = 0;
+     _mediaKeyReport[1] = 0;
+ 	sendReport(&_keyReport);
++	sendReport(&_mediaKeyReport); // esp-wasm: from upstream master (after 0.3.2-beta)
+ }
+ 
+ size_t BleKeyboard::write(uint8_t c)
+@@ -499,39 +501,40 @@ size_t BleKeyboard::write(const uint8_t *buffer, size_t size) {
+ 	return n;
+ }
+ 
++// esp-wasm: arduino-esp32 3.x's BLE library runs on NimBLE here, which adds the
++// 0x2902 (notification) descriptors itself: getDescriptorByUUID() returns null,
++// and dereferencing it crashed on connect. Only touch them on Bluedroid.
++static void setNotifications(BLECharacteristic* c, bool on) {
++#if !defined(USE_NIMBLE) && defined(CONFIG_BLUEDROID_ENABLED)
++  BLE2902* desc = (BLE2902*)c->getDescriptorByUUID(BLEUUID((uint16_t)0x2902));
++  if (desc) desc->setNotifications(on);
++#else
++  (void)c; (void)on;
++#endif
++}
++
+ void BleKeyboard::onConnect(BLEServer* pServer) {
+   this->connected = true;
+-
+-#if !defined(USE_NIMBLE)
+-
+-  BLE2902* desc = (BLE2902*)this->inputKeyboard->getDescriptorByUUID(BLEUUID((uint16_t)0x2902));
+-  desc->setNotifications(true);
+-  desc = (BLE2902*)this->inputMediaKeys->getDescriptorByUUID(BLEUUID((uint16_t)0x2902));
+-  desc->setNotifications(true);
+-
+-#endif // !USE_NIMBLE
+-
++  setNotifications(this->inputKeyboard, true);
++  setNotifications(this->inputMediaKeys, true);
+ }
+ 
+ void BleKeyboard::onDisconnect(BLEServer* pServer) {
+   this->connected = false;
+-
+-#if !defined(USE_NIMBLE)
+-
+-  BLE2902* desc = (BLE2902*)this->inputKeyboard->getDescriptorByUUID(BLEUUID((uint16_t)0x2902));
+-  desc->setNotifications(false);
+-  desc = (BLE2902*)this->inputMediaKeys->getDescriptorByUUID(BLEUUID((uint16_t)0x2902));
+-  desc->setNotifications(false);
+-
++  setNotifications(this->inputKeyboard, false);
++  setNotifications(this->inputMediaKeys, false);
++  // esp-wasm: advertise again so the host can reconnect (the 3.x server
++  // doesn't by default).
+   advertising->start();
+-
+-#endif // !USE_NIMBLE
+ }
+ 
+ void BleKeyboard::onWrite(BLECharacteristic* me) {
+-  uint8_t* value = (uint8_t*)(me->getValue().c_str());
++  // esp-wasm: getValue() returns a temporary String in 3.x; copy the byte
++  // before it's freed.
++  String v = me->getValue();
++  uint8_t value = v.length() ? (uint8_t)v[0] : 0;
+   (void)value;
+-  ESP_LOGI(LOG_TAG, "special keys: %d", *value);
++  ESP_LOGI(LOG_TAG, "special keys: %d", value);
+ }
+ 
+ void BleKeyboard::delay_ms(uint64_t ms) {

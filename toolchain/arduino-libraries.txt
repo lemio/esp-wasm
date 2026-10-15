@@ -25,3 +25,4 @@ AsyncTCP           ESP32Async/AsyncTCP             v3.5.0
 ESPAsyncWebServer  ESP32Async/ESPAsyncWebServer    v3.12.1
 U8g2               olikraus/U8g2_Arduino           2.36.18
 WebSockets         Links2004/arduinoWebSockets     2.7.2
+BleKeyboard        T-vK/ESP32-BLE-Keyboard         0.3.2-beta
