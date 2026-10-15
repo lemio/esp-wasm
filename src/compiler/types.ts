@@ -8,6 +8,11 @@ export interface BuildOptions {
   trace?: boolean;
   /** Libraries the user installed (from the PlatformIO registry), compiled with the sketch. */
   libraries?: BuildLibrary[];
+  /**
+   * A board's own definitions (e.g. which pin LED_BUILTIN is), included into a sketch right
+   * after Arduino.h, so they can override the generic ESP32-S3 variant without shifting lines.
+   */
+  boardHeader?: string;
 }
 
 export interface BuildLibrary {
