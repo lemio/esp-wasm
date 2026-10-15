@@ -16,9 +16,9 @@ Web Serial. No backend: the site is static files. Needs Chrome or Edge (Web Seri
 |---|---|
 | **Flash** | One click: compile, enter download mode (DTR/RTS), flash, reset, serial monitor (115200 baud, ESP-IDF colours). The port is remembered. |
 | **Arduino / ESP-IDF** | Toolbar switch. Sketches (`setup()`/`loop()`) use arduino-esp32 3.3.12 on ESP-IDF 6.0.3. ESP-IDF programs (`app_main()`) are plain C. Each mode keeps its own code. |
-| **Libraries** | Built in: the core libraries plus 15 popular ones. A missing header shows matching [PlatformIO](https://registry.platformio.org) libraries: **Install** adds one with its dependencies, and the build runs again. |
+| **Libraries** | Built in: the core libraries plus 16 popular ones. A missing header shows matching [PlatformIO](https://registry.platformio.org) libraries: **Install** adds one with its dependencies, and the build runs again. |
 | **Completions** | The Arduino-ESP32 API as you type: functions with their parameters, constants, `Serial.`/`Wire.`/`WiFi.` methods (inherited ones too), parameter hints, and plain-language notes on hover. Read from the sysroot's headers by `toolchain/arduino-api.mjs` (run it again after a new toolchain). |
-| **Examples** | 553 examples of the core and libraries for this configuration, searchable by title and code. |
+| **Examples** | 554 examples of the core and libraries for this configuration, searchable by title and code. |
 | **Trace** | Highlights the running line, with a fading trail of recent lines. Pause, step over/into/out, breakpoints. |
 | **Reset / Disconnect** | Restart the chip, or release the serial port for another program. |
 
@@ -36,7 +36,7 @@ Build speed: blink ~0.4 s, a NeoPixel sketch ~2 s. A library compiles once, then
     BluetoothSerial, SimpleBLE.
 - **Popular libraries** ([toolchain/arduino-libraries.txt](toolchain/arduino-libraries.txt)):
   Adafruit NeoPixel, FastLED, ArduinoJson, PubSubClient, Adafruit GFX/BusIO/Unified
-  Sensor/SSD1306/SH110X/seesaw, DHT, U8g2, WebSockets, AsyncTCP, ESPAsyncWebServer.
+  Sensor/SSD1306/SH110X/seesaw, DHT, U8g2, WebSockets, AsyncTCP, ESPAsyncWebServer, ESP32 BLE Keyboard.
 - **Like the Arduino IDE:** `Arduino.h` is included automatically, and function
   prototypes are generated.
 - **`Serial`** is the port you flash over: the native USB port or UART0. ESP-IDF's
@@ -180,7 +180,10 @@ void loop() {
   `<script type="text/arduino" data-file="BleKeyboard.h">…</script>` next to the sketch. They're
   built like an installed library (`#include <BleKeyboard.h>`; `.cpp` files are compiled and cached)
   and stay out of the editor.
-- **Driving it from the page:** `window.EspWasm.check(el)`, `.upload(el)`, `.setCode(el, code)`.
+- **Driving it from the page:** `window.EspWasm.check(el)`, `.upload(el)`, `.setCode(el, code)`,
+  `.send(el, text)` (to the running sketch's `Serial`; use `trace="off"`, as the trace runtime reads
+  serial input for its own commands) and `.connect(el)` (listen to a board that already runs the
+  sketch, without uploading). `serial="off"` hides the output pane when the page shows it itself.
   The `<Arduino>` element fires `esp-wasm:status` (`{ state, text }`: building, built, failed,
   uploading, running, error) and `esp-wasm:serial` (`{ text }`).
 - **Boards** are defined in [src/embed/boards.ts](src/embed/boards.ts): a header included right

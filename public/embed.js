@@ -27,7 +27,8 @@
  * buttons (which buttons besides Upload: "check" or "build", "download", "reset"; e.g. buttons="upload check download").
  * Reset shows after an upload by default; with a buttons list only if it names "reset"; reset="off" leaves it out.
  * Events on the <Arduino> element (bubbling): "esp-wasm:status" { state, text }, "esp-wasm:serial" { text }.
- * window.EspWasm: { mount(el), check(el), upload(el), setCode(el, code), base }.
+ * serial="off": the page shows the board's output itself (from the esp-wasm:serial events).
+ * window.EspWasm: { mount(el), check(el), upload(el), reset(el), setCode(el, code), send(el, text), connect(el), base }.
  */
 (() => {
   const script = document.currentScript;
@@ -85,6 +86,7 @@
     if (el.getAttribute("buttons")) q.set("buttons", el.getAttribute("buttons"));   // e.g. "upload check download"
     if (el.getAttribute("trace")) q.set("trace", el.getAttribute("trace"));         // "off": no line highlighting
     if (el.getAttribute("reset")) q.set("reset", el.getAttribute("reset"));         // "off": no reset button after uploading
+    if (el.getAttribute("serial")) q.set("serial", el.getAttribute("serial"));      // "off": the page shows the output itself
     const iframe = document.createElement("iframe");
     iframe.src = `${base}embed.html#${q}`;
     iframe.title = "Arduino code editor";
@@ -102,7 +104,9 @@
     else f.el.dispatchEvent(new CustomEvent(`esp-wasm:${m.type}`, { bubbles: true, detail: m }));
   });
   const send = (el, msg) => { const f = frames.get(el.dataset.espWasm); f && f.iframe.contentWindow.postMessage({ source: "esp-wasm-host", ...msg }, "*"); };
-  window.EspWasm = { base, mount, check: (el) => send(el, { type: "check" }), upload: (el) => send(el, { type: "upload" }), reset: (el) => send(el, { type: "reset" }), setCode: (el, code) => send(el, { type: "set-code", code }) };
+  window.EspWasm = { base, mount, check: (el) => send(el, { type: "check" }), upload: (el) => send(el, { type: "upload" }), reset: (el) => send(el, { type: "reset" }), setCode: (el, code) => send(el, { type: "set-code", code }),
+    // text to the running sketch (what its Serial.read() gets), and listening to a board that already runs the sketch
+    send: (el, text) => send(el, { type: "send", text }), connect: (el) => send(el, { type: "connect" }) };
 
   const start = () => rawSource.then(() => {
     // <Arduino> is not a custom element name (no hyphen), so the parser makes it a plain element named ARDUINO

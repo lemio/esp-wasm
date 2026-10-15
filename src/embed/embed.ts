@@ -7,7 +7,8 @@
  *   out → { type: "height", px }                      size the iframe to its content
  *   out → { type: "status", state, text }             idle | building | built | failed | uploading | running | error
  *   out → { type: "serial", text }                    what the board prints
- *   in  ← { source: "esp-wasm-host", type: "check" | "upload" | "reset" | "set-code", code? }
+ *   in  ← { source: "esp-wasm-host", type: "check" | "upload" | "reset" | "set-code" | "send" | "connect", code?, text? }
+ *         send: text to the running sketch (its Serial.read()); connect: listen to a board that already runs the sketch
  */
 import "./embed.css";
 import { CompileError, CompilerClient } from "../compiler/client";
@@ -71,6 +72,8 @@ btnDownload.hidden = !wanted.has("download");
 const resetWanted = (params.has("buttons") ? wanted.has("reset") : true) && !/^(off|false|0|no)$/i.test(params.get("reset") ?? "");
 // Line highlighting (a Trace build): on by default, the running line glows in the editor. trace="off" turns it off.
 const tracing = !/^(off|false|0|no)$/i.test(params.get("trace") ?? "");
+// serial=off: the host page shows the board's output its own way (it still gets "serial" messages)
+const serialShown = !/^(off|false|0|no)$/i.test(params.get("serial") ?? "");
 
 function setStatus(state: string, text: string) {
   statusEl.textContent = text;
@@ -140,8 +143,8 @@ const monitor = new SerialMonitor({
   data: (text) => {
     const shown = sketchOutput(traceFilter.feed(text));
     if (shown) {
-      if (serialEl.hidden) { serialEl.hidden = false; resize(); }
-      serial.serial(shown);
+      if (serialShown && serialEl.hidden) { serialEl.hidden = false; resize(); }
+      if (serialShown) serial.serial(shown);
       post({ type: "serial", text: shown });
     }
   },
@@ -343,7 +346,23 @@ window.addEventListener("message", (e) => {
   if (m.type === "check") void exclusive(async () => void (await build()));
   if (m.type === "upload") btnUpload.click();
   if (m.type === "reset" && !btnReset.hidden) btnReset.click();
+  if (m.type === "send" && typeof m.text === "string" && monitor.running) void monitor.write(m.text).catch(() => {});
+  if (m.type === "connect" && !monitor.running) void exclusive(connect);
 });
+
+// Connect: the board already runs this sketch (uploaded earlier): open its port and listen, without uploading
+async function connect() {
+  if (!holding() && !(await claimBoard())) { setStatus("idle", "Another example is uploading — try again in a moment"); return; }
+  let port: SerialPort;
+  try { port = await boardPort(); } catch { return; }   // no port picked
+  await flasher.disconnect().catch(() => {});
+  serial.clear(); partial = "";
+  try { await monitor.start(port, { reset: false }); } catch (e) { out.log(`Monitor: ${(e as Error).message}`, "error"); setStatus("error", "Couldn't open the board"); return; }
+  setStatus("running", "Connected to the board");
+  btnDisconnect.hidden = false;
+  btnReset.hidden = !resetWanted;
+  resize();
+}
 
 refresh();
 setStatus("idle", isWebSerialSupported() ? "" : "Uploading needs Chrome or Edge");
