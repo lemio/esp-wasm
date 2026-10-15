@@ -176,6 +176,10 @@ void loop() {
 - **Code with `<` in it** (`#include <Wire.h>`, `a<b`): the HTML parser changes it. On pages served
   over http(s) the loader reads the page's own source instead; from `file://` it repairs the usual
   header names. Always safe: `<Arduino><script type="text/arduino">…</script></Arduino>`.
+- **Extra files** the sketch uses but the reader needn't see (a small library, a config header):
+  `<script type="text/arduino" data-file="BleKeyboard.h">…</script>` next to the sketch. They're
+  built like an installed library (`#include <BleKeyboard.h>`; `.cpp` files are compiled and cached)
+  and stay out of the editor.
 - **Driving it from the page:** `window.EspWasm.check(el)`, `.upload(el)`, `.setCode(el, code)`.
   The `<Arduino>` element fires `esp-wasm:status` (`{ state, text }`: building, built, failed,
   uploading, running, error) and `esp-wasm:serial` (`{ text }`).

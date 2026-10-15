@@ -1,3 +1,18 @@
+diff --git a/cores/esp32/esp32-hal-gpio.c b/cores/esp32/esp32-hal-gpio.c
+index 15fbe93b8..999ebf3f8 100644
+--- a/cores/esp32/esp32-hal-gpio.c
++++ b/cores/esp32/esp32-hal-gpio.c
+@@ -29,6 +29,10 @@
+ 
+ // It fixes lack of pin definition for S3 and for any future SoC
+ // this function works for ESP32, ESP32-S2 and ESP32-S3 - including the C3, it will return -1 for any pin
++// ESP-IDF 6 removed SOC_TOUCH_SENSOR_NUM; derive it as esp32-hal-touch-ng.c does.
++#if !defined(SOC_TOUCH_SENSOR_NUM) && SOC_TOUCH_SENSOR_SUPPORTED
++#define SOC_TOUCH_SENSOR_NUM (SOC_TOUCH_MAX_CHAN_ID + 1)
++#endif
+ #if SOC_TOUCH_SENSOR_NUM > 0
+ #include "soc/touch_sensor_periph.h"
+ 
 diff --git a/cores/esp32/esp32-hal-rmt.c b/cores/esp32/esp32-hal-rmt.c
 index 184cd0abf..8f67d0c3a 100644
 --- a/cores/esp32/esp32-hal-rmt.c

@@ -27,6 +27,13 @@ const fromBase64Url = (s: string) =>
 
 const original = params.has("code") ? fromBase64Url(params.get("code")!) : "void setup() {\n}\n\nvoid loop() {\n}\n";
 const board = boardFor(params.get("board"));
+// Files from the page that the sketch uses but the reader doesn't see (data-file blocks): built like an installed library.
+const pageFiles: { path: string; content: string }[] = params.has("files") ? JSON.parse(fromBase64Url(params.get("files")!)) : [];
+const pageLibrary = pageFiles.length ? [{
+  id: "page", includeDirs: ["."], files: pageFiles,
+  // compiled objects are cached by version: a change to the files gets a new one
+  version: (pageFiles.reduce((a, f) => [...f.path + f.content].reduce((x, c) => Math.imul(x ^ c.charCodeAt(0), 0x01000193), a), 0x811c9dc5) >>> 0).toString(16),
+}] : [];
 const theme = params.get("theme");
 if (theme === "light" || theme === "dark") document.documentElement.dataset.theme = theme;
 const dark = theme === "dark" || (theme !== "light" && matchMedia("(prefers-color-scheme: dark)").matches);
@@ -219,6 +226,7 @@ async function build(forBoard = false): Promise<FlashPart[] | undefined> {
     const result = await compiler.build([{ path: "sketch.ino", content: model.getValue() }], {
       defines: [`ARDUINO_USB_CDC_ON_BOOT=${flasher.usesNativeUsb === false ? 0 : 1}`],
       boardHeader: board.header,
+      libraries: pageLibrary,
       trace: tracing && forBoard,
     });
     lineTable = tracing && forBoard ? result.lineTable : undefined;

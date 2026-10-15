@@ -19,6 +19,9 @@
  * scrolls into view). <Project> and <Diagram> are left for the page to lay out and style.
  * Code with "<" in it (#include <Wire.h>, a < b) is safest inside <script type="text/arduino">…</script>
  * within <Arduino>; plain text works too, and the loader repairs what the HTML parser did to it.
+ * Files the sketch needs that the reader doesn't have to see, e.g. a small library, go alongside it as
+ * <script type="text/arduino" data-file="BleKeyboard.h">…</script>: built with the sketch, as if installed
+ * (#include <BleKeyboard.h>), and not shown in the editor.
  *
  * Attributes on <Arduino>: board ("esp32-s3", "schematik"), id (keeps edits per project), theme ("light" | "dark"),
  * buttons (which buttons besides Upload: "check" or "build", "download", "reset"; e.g. buttons="upload check download").
@@ -41,7 +44,7 @@
   // cached), block by block; and from file://, the parsed text with the usual header names put back.
   const HEADERS = ["Arduino.h", "Wire.h", "SPI.h", "WiFi.h", "WiFiClient.h", "WiFiClientSecure.h", "WiFiUdp.h", "WebServer.h", "HTTPClient.h",
     "ESPmDNS.h", "Preferences.h", "EEPROM.h", "SD.h", "FS.h", "SPIFFS.h", "LittleFS.h", "Ticker.h", "Update.h", "ArduinoOTA.h", "AsyncUDP.h",
-    "BLEDevice.h", "BLEServer.h", "BLEUtils.h", "NimBLEDevice.h", "ESP_I2S.h", "esp_now.h", "Adafruit_NeoPixel.h", "FastLED.h", "ArduinoJson.h",
+    "BLEDevice.h", "BLEServer.h", "BLEUtils.h", "BLEHIDDevice.h", "BleKeyboard.h", "NimBLEDevice.h", "ESP_I2S.h", "esp_now.h", "Adafruit_NeoPixel.h", "FastLED.h", "ArduinoJson.h",
     "PubSubClient.h", "Adafruit_GFX.h", "Adafruit_SSD1306.h", "Adafruit_Sensor.h", "DHT.h", "U8g2lib.h", "WebSocketsServer.h", "ESPAsyncWebServer.h", "AsyncTCP.h"];
   const proper = Object.fromEntries(HEADERS.map((h) => [h.toLowerCase(), h]));
   const decode = (html) => { const ta = document.createElement("textarea"); ta.innerHTML = html; return ta.value; };
@@ -52,14 +55,16 @@
       }).catch(() => {})
     : Promise.resolve();
   function codeOf(el) {
-    const raw = el.querySelector('script[type="text/arduino"], script[type="text/plain"], template');
+    const raw = el.querySelector('script[type="text/arduino"]:not([data-file]), script[type="text/plain"]:not([data-file]), template');
     let text;
     if (raw) text = raw.tagName === "TEMPLATE" ? decode(raw.innerHTML) : raw.textContent;
     else {
       const all = [...document.getElementsByTagName("arduino")], i = all.indexOf(el);
-      if (rawBlocks && rawBlocks.length === all.length && !/<script/i.test(rawBlocks[i])) text = decode(rawBlocks[i]);
+      // the sketch is the text around any data-file blocks
+      const own = (html) => html.replace(/<script\b[^>]*\bdata-file\b[\s\S]*?<\/script>/gi, "");
+      if (rawBlocks && rawBlocks.length === all.length && !/<script/i.test(own(rawBlocks[i]))) text = decode(own(rawBlocks[i]));
       // the parser opened an element <wire.h> there and closed it at the end of the block: drop the closing tag
-      else text = decode(el.innerHTML.replace(/<\/[a-z0-9_./-]+\.(?:h|hpp)>/gi, "").replace(/<([a-z0-9_./-]+\.(?:h|hpp))>/gi, (m, name) => `<${proper[name.toLowerCase()] || name}>`));
+      else text = decode(own(el.innerHTML).replace(/<\/[a-z0-9_./-]+\.(?:h|hpp)>/gi, "").replace(/<([a-z0-9_./-]+\.(?:h|hpp))>/gi, (m, name) => `<${proper[name.toLowerCase()] || name}>`));
     }
     // the common indentation of the block goes, as do the blank lines around it
     const lines = text.replace(/\t/g, "  ").split("\n");
@@ -74,6 +79,8 @@
     const id = el.getAttribute("id") || `p${[...code].reduce((h, c) => (Math.imul(h ^ c.charCodeAt(0), 16777619) >>> 0), 2166136261).toString(16)}`;
     el.dataset.espWasm = id;
     const q = new URLSearchParams({ code: toBase64Url(code), board: el.getAttribute("board") || "esp32-s3", id });
+    const files = [...el.querySelectorAll("script[data-file]")].map((s) => ({ path: s.dataset.file, content: s.textContent }));
+    if (files.length) q.set("files", toBase64Url(JSON.stringify(files)));
     if (el.getAttribute("theme")) q.set("theme", el.getAttribute("theme"));
     if (el.getAttribute("buttons")) q.set("buttons", el.getAttribute("buttons"));   // e.g. "upload check download"
     if (el.getAttribute("trace")) q.set("trace", el.getAttribute("trace"));         // "off": no line highlighting
