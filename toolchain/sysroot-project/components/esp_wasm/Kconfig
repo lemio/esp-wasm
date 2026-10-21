@@ -19,4 +19,8 @@ config ARDUINO_SELECTIVE_HTTPUpdate
 config ARDUINO_SELECTIVE_HTTPUpdateServer
     bool "HTTPUpdateServer"
     default y
+# USB.h, USBHIDKeyboard.h…: only compiles to something with TinyUSB, i.e. in the USB-OTG variant (sdkconfig.usb)
+config ARDUINO_SELECTIVE_USB
+    bool "USB"
+    default y
 endmenu

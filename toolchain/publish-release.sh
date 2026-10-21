@@ -14,7 +14,7 @@ command -v gh >/dev/null || { echo "Needs the GitHub CLI: brew install gh && gh 
 
 VERSION="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["version"])' "$DIR/manifest.json")"
 TAG="toolchain-$VERSION"
-FILES=(llvm.wasm ld.wasm sysroot.tar.gz bootloader.bin partition-table.bin manifest.json examples.json builtin-libraries.json)
+FILES=(llvm.wasm ld.wasm sysroot.tar.gz sysroot-usb.tar.gz bootloader.bin partition-table.bin manifest.json examples.json builtin-libraries.json)
 for f in "${FILES[@]}"; do [[ -f "$DIR/$f" ]] || { echo "Missing $DIR/$f" >&2; exit 1; }; done
 
 if gh release view "$TAG" >/dev/null 2>&1; then

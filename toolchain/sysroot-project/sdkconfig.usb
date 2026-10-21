@@ -1,0 +1,11 @@
+# The USB-OTG variant of the sysroot (build-sysroot.sh, ESP_WASM_USB=1), on top of sdkconfig.defaults.
+# TinyUSB owns the S3's USB port: the sketch's Serial is TinyUSB's CDC port (with ARDUINO_USB_CDC_ON_BOOT=1),
+# next to whatever it adds (a keyboard, a mouse, MIDI…).
+CONFIG_TINYUSB_ENABLED=y
+CONFIG_TINYUSB_CDC_ENABLED=y
+CONFIG_TINYUSB_HID_ENABLED=y
+CONFIG_TINYUSB_MIDI_ENABLED=y
+CONFIG_TINYUSB_MSC_ENABLED=y
+CONFIG_TINYUSB_VENDOR_ENABLED=y
+# The USB-Serial/JTAG peripheral is off while TinyUSB uses the port: no console mirror on it
+CONFIG_ESP_CONSOLE_SECONDARY_NONE=y

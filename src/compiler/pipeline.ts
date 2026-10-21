@@ -50,6 +50,7 @@ import { addStatementHooks } from "../debug/statement-hooks";
 import traceRuntime from "../debug/trace-runtime.cpp?raw";
 import { parseElf } from "../image/elf";
 import { OBJECTS, dbRequest, gunzipBlob, gzip } from "../libraries/db";
+import { usedLibraries } from "./used-libraries";
 import { COMPAT_DIR, COMPAT_HEADERS } from "./compat-headers";
 import { addPrototypes } from "./prototypes";
 import { runWasi } from "./wasi-runner";
@@ -125,8 +126,10 @@ export async function build(
   tc: Toolchain,
   userSources: SourceFile[],
   log: Log,
-  { defines = [], trace: traceRequested = false, debugInfo = false, libraries = [], boardHeader }: BuildOptions = {},
+  { defines = [], trace: traceRequested = false, debugInfo = false, libraries: installed = [], boardHeader }: BuildOptions = {},
 ): Promise<BuildResult> {
+  // Only the installed libraries the code includes (directly or through each other).
+  const libraries = usedLibraries(userSources, installed);
   // `trace` from here on: instrumented. With debugInfo the code is left as written.
   const trace = traceRequested && !debugInfo;
   const debug = trace || debugInfo;

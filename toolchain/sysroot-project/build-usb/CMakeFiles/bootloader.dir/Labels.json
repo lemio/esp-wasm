@@ -1,0 +1,43 @@
+{
+	"sources" : 
+	[
+		{
+			"file" : "/Users/geertroumen/Code/Git/esp-wasm/toolchain/sysroot-project/build-usb/CMakeFiles/bootloader"
+		},
+		{
+			"file" : "/Users/geertroumen/Code/Git/esp-wasm/toolchain/sysroot-project/build-usb/CMakeFiles/bootloader.rule"
+		},
+		{
+			"file" : "/Users/geertroumen/Code/Git/esp-wasm/toolchain/sysroot-project/build-usb/CMakeFiles/bootloader-complete.rule"
+		},
+		{
+			"file" : "/Users/geertroumen/Code/Git/esp-wasm/toolchain/sysroot-project/build-usb/bootloader-prefix/src/bootloader-stamp/bootloader-build.rule"
+		},
+		{
+			"file" : "/Users/geertroumen/Code/Git/esp-wasm/toolchain/sysroot-project/build-usb/bootloader-prefix/src/bootloader-stamp/bootloader-configure.rule"
+		},
+		{
+			"file" : "/Users/geertroumen/Code/Git/esp-wasm/toolchain/sysroot-project/build-usb/bootloader-prefix/src/bootloader-stamp/bootloader-download.rule"
+		},
+		{
+			"file" : "/Users/geertroumen/Code/Git/esp-wasm/toolchain/sysroot-project/build-usb/bootloader-prefix/src/bootloader-stamp/bootloader-install.rule"
+		},
+		{
+			"file" : "/Users/geertroumen/Code/Git/esp-wasm/toolchain/sysroot-project/build-usb/bootloader-prefix/src/bootloader-stamp/bootloader-mkdir.rule"
+		},
+		{
+			"file" : "/Users/geertroumen/Code/Git/esp-wasm/toolchain/sysroot-project/build-usb/bootloader-prefix/src/bootloader-stamp/bootloader-patch.rule"
+		},
+		{
+			"file" : "/Users/geertroumen/Code/Git/esp-wasm/toolchain/sysroot-project/build-usb/bootloader-prefix/src/bootloader-stamp/bootloader-update.rule"
+		}
+	],
+	"target" : 
+	{
+		"labels" : 
+		[
+			"bootloader"
+		],
+		"name" : "bootloader"
+	}
+}

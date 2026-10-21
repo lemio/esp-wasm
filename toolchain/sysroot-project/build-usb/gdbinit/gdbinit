@@ -1,0 +1,2 @@
+source /Users/geertroumen/Code/Git/esp-wasm/toolchain/sysroot-project/build-usb/gdbinit/symbols
+source /Users/geertroumen/Code/Git/esp-wasm/toolchain/sysroot-project/build-usb/gdbinit/connect

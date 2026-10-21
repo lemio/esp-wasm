@@ -20,6 +20,7 @@ import { Console } from "../ui/console";
 import { FLASH_OFFSETS } from "../image/flash-layout";
 import { Debugger, TraceFilter } from "../debug/trace-view";
 import { boardFor } from "./boards";
+import { variantFor } from "../compiler/variant";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 const params = new URLSearchParams(location.hash.slice(1));
@@ -286,7 +287,12 @@ async function upload() {
   const port = flasher.currentPort;
   await flasher.disconnect().catch(() => {});
   if (!flashed || !port) return;
-  setStatus("running", "Running on the board");
+  // A USB device sketch (USB.h) takes over the board's USB port: the next upload needs the board in download mode
+  if (variantFor([{ path: "sketch.ino", content: model.getValue() }]) === "usb") {
+    setStatus("running", "Running — it's a USB device now. To upload again: hold BOOT, tap RESET, release BOOT, then Upload");
+    out.log("This sketch makes the board a USB device itself (USB.h), so the USB port no longer listens for uploads. "
+      + "To upload another sketch: hold BOOT, tap RESET, release BOOT, then press Upload.", "warn");
+  } else setStatus("running", "Running on the board");
   serial.clear(); partial = "";
   btnDisconnect.hidden = false;   // the port stays open for the board's output, until this is clicked
   btnReset.hidden = !resetWanted;
