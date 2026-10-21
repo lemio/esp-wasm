@@ -27,7 +27,7 @@ if [[ "${TEST_EXAMPLES:-0}" == "1" ]]; then
     --max-old-space-size=4096 "$HERE/scripts/test-examples.mjs" "$STAGE" "$STAGE/examples.json"
 fi
 
-for f in llvm.wasm ld.wasm sysroot.tar.gz bootloader.bin partition-table.bin examples.json builtin-libraries.json; do
+for f in llvm.wasm ld.wasm sysroot.tar.gz sysroot-usb.tar.gz bootloader.bin partition-table.bin examples.json builtin-libraries.json; do
   cp "$STAGE/$f" "$OUT/$f"
 done
 
@@ -40,6 +40,7 @@ cat > "$OUT/manifest.json" <<JSON
     "ld": { "url": "ld.wasm", "argv0": "ld" }
   },
   "sysroot": "sysroot.tar.gz",
+  "variants": { "usb": { "overlay": "sysroot-usb.tar.gz", "description": "USB mode USB-OTG (TinyUSB): for sketches that are a USB device themselves (USB.h)" } },
   "bootloader": "bootloader.bin",
   "partitionTable": "partition-table.bin",
   "image": { "flashMode": "dio", "flashFreq": "80m", "flashSize": "4MB" }

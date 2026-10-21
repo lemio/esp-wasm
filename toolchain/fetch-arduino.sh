@@ -19,6 +19,27 @@ if [[ ! -d "$OUT/components/arduino" ]]; then
   git -C "$OUT/components/arduino" apply "$HERE/patches/arduino-esp32.patch"
 fi
 
+# TinyUSB, for the USB-OTG variant of the sysroot (USB keyboards, mice, MIDI…: USB.h, USBHIDKeyboard.h).
+# Arduino's own builds take the arduino_tinyusb component from esp32-arduino-lib-builder, with TinyUSB
+# cloned into it and patched. It lives outside out/components: its Kconfig turns TinyUSB on by default,
+# and the regular sysroot (USB mode "Hardware CDC and JTAG") must not see it.
+LIB_BUILDER_REF="${LIB_BUILDER_REF:-release/v6.0}"
+TINYUSB_REF="${TINYUSB_REF:-cb3caee74de7dbb9fc91a5fdb37b448a63eadae0}"   # the commit before TinyUSB dropped the host vendor driver, which release/v6.0's component still lists
+USB_COMP="$OUT/components-usb/arduino_tinyusb"
+if [[ ! -d "$USB_COMP" ]]; then
+  tmp="$(mktemp -d)"
+  git clone -q --depth 1 --branch "$LIB_BUILDER_REF" --filter=blob:none --sparse https://github.com/espressif/esp32-arduino-lib-builder.git "$tmp/lb"
+  git -C "$tmp/lb" sparse-checkout set components/arduino_tinyusb patches/tinyusb
+  mkdir -p "$OUT/components-usb" && cp -R "$tmp/lb/components/arduino_tinyusb" "$USB_COMP"
+  git init -q "$USB_COMP/tinyusb" && git -C "$USB_COMP/tinyusb" fetch -q --depth 1 https://github.com/hathach/tinyusb.git "$TINYUSB_REF" && git -C "$USB_COMP/tinyusb" checkout -q FETCH_HEAD
+  for d in "$tmp"/lb/patches/tinyusb/*.diff; do
+    [[ -e "$d" ]] || continue
+    git -C "$USB_COMP/tinyusb" apply --reverse --check "$d" 2>/dev/null && continue   # already upstream
+    git -C "$USB_COMP/tinyusb" apply "$d" && echo "patched TinyUSB: $(basename "$d")"
+  done
+  rm -rf "$tmp"
+fi
+
 LIBS="$(grep -vE '^\s*(#|$)' "$HERE/arduino-libraries.txt")"
 
 # 1. Fetch and patch.

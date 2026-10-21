@@ -101,3 +101,19 @@ index 0d043f4..f99bc82 100644
  }
  
  void BleKeyboard::delay_ms(uint64_t ms) {
+diff --git a/BleKeyboard.h b/BleKeyboard.h
+index 0736a02..19aa3a0 100644
+--- a/BleKeyboard.h
++++ b/BleKeyboard.h
+@@ -159,9 +159,9 @@ public:
+   size_t press(const MediaKeyReport k);
+   size_t release(uint8_t k);
+   size_t release(const MediaKeyReport k);
+-  size_t write(uint8_t c);
++  size_t write(uint8_t c) override; // esp-wasm: override (clang warns without it)
+   size_t write(const MediaKeyReport c);
+-  size_t write(const uint8_t *buffer, size_t size);
++  size_t write(const uint8_t *buffer, size_t size) override;
+   void releaseAll(void);
+   bool isConnected(void);
+   void setBatteryLevel(uint8_t level);

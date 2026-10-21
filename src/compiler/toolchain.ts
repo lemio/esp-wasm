@@ -14,6 +14,11 @@ export interface ToolchainManifest {
   };
   /** tar.gz holding the sysroot/ directory (headers, libs, ld scripts, flags/) */
   sysroot: string;
+  /**
+   * Variants of the sysroot, each a tar.gz of only the files that differ from it (laid over it).
+   * "usb": USB mode USB-OTG (TinyUSB), for sketches that use the S3's USB port themselves (USB.h).
+   */
+  variants?: Record<string, { overlay: string; description?: string }>;
   bootloader: string;
   partitionTable: string;
   image: { flashMode: "qio" | "dio"; flashFreq: "80m" | "40m"; flashSize: "2MB" | "4MB" | "8MB" | "16MB" };
@@ -21,6 +26,10 @@ export interface ToolchainManifest {
 
 export interface Toolchain {
   manifest: ToolchainManifest;
+  /** The sysroot's files, as unpacked (variants reuse them). */
+  files: Map<string, Uint8Array>;
+  /** The toolchain with a sysroot variant laid over the base one (downloaded on first use). */
+  variant(name: string): Promise<Toolchain>;
   clang: WebAssembly.Module;
   ld: WebAssembly.Module;
   vfs: Vfs;
@@ -70,7 +79,8 @@ export async function loadToolchain(manifestUrl: string, log: Log): Promise<Tool
     WebAssembly.compile(clangBytes as BufferSource),
     WebAssembly.compile(ldBytes as BufferSource),
   ]);
-  const vfs = new Vfs(untar(await gunzip(sysrootGz)));
+  const files = untar(await gunzip(sysrootGz));
+  const vfs = new Vfs(files);
 
   // Drop stale caches from earlier toolchain versions.
   if ("caches" in self) {
@@ -78,5 +88,23 @@ export async function loadToolchain(manifestUrl: string, log: Log): Promise<Tool
       if (name.startsWith("esp-wasm-toolchain-") && name !== cacheName) await caches.delete(name);
     }
   }
-  return { manifest, clang, ld, vfs, bootloader, partitionTable };
+  const variants = new Map<string, Promise<Toolchain>>();
+  const tc: Toolchain = {
+    manifest, files, clang, ld, vfs, bootloader, partitionTable,
+    variant(name) {
+      const v = manifest.variants?.[name];
+      if (!v) return Promise.reject(new Error(`This toolchain has no "${name}" variant`));
+      if (!variants.has(name)) {
+        variants.set(name, (async () => {
+          const overlay = untar(await gunzip(await get(v.overlay)));
+          const merged = new Map(files);
+          for (const [path, data] of overlay) merged.set(path, data);
+          // its own version: compiled libraries are cached per toolchain version, and these differ
+          return { ...tc, manifest: { ...manifest, version: `${manifest.version}+${name}` }, files: merged, vfs: new Vfs(merged) };
+        })().catch((e) => { variants.delete(name); throw e; }));
+      }
+      return variants.get(name)!;
+    },
+  };
+  return tc;
 }

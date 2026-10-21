@@ -96,3 +96,21 @@ index a897e0bbd..f43240ceb 100644
      pExisting->m_removed = 0;
    } else
  #endif
+diff --git a/libraries/USB/src/USBMSCFS.cpp b/libraries/USB/src/USBMSCFS.cpp
+index 21a9cc6e0..ffd21d9e3 100644
+--- a/libraries/USB/src/USBMSCFS.cpp
++++ b/libraries/USB/src/USBMSCFS.cpp
+@@ -443,7 +443,13 @@ bool USBMSCFSClass::begin(const char *mountpoint, uint8_t max_files, bool format
+ 
+   FATFS *fs = nullptr;
+   char drv[3] = {(char)('0' + pdrv), ':', 0};
++#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(6, 0, 0)
++  // esp-wasm: ESP-IDF 6 takes the mount point, drive and file limit as a struct
++  const esp_vfs_fat_conf_t conf = {.base_path = mountpoint, .fat_drive = drv, .max_files = (size_t)max_files};
++  esp_err_t err = esp_vfs_fat_register(&conf, &fs);
++#else
+   esp_err_t err = esp_vfs_fat_register(mountpoint, drv, max_files, &fs);
++#endif
+   if (err != ESP_OK) {
+     log_e("USBMSCFS: esp_vfs_fat_register failed 0x%x", err);
+     usbmsc_begin_cleanup(mountpoint, pdrv, false);

@@ -2,6 +2,11 @@
 # Its sources exist only so compile_commands.json records the C and C++ flags
 # (including every library's include dir), and so the linker keeps the same
 # set of components.
+# the USB-OTG variant: TinyUSB is part of the sketch's world too (its headers, through USB.h)
+set(usb_components "")
+if(DEFINED ENV{ESP_WASM_USB})
+  set(usb_components arduino_tinyusb)
+endif()
 file(GLOB arduino_libs LIST_DIRECTORIES true RELATIVE "${CMAKE_CURRENT_LIST_DIR}/../../out/components"
      "${CMAKE_CURRENT_LIST_DIR}/../../out/components/lib_*")
 idf_component_register(
@@ -15,4 +20,5 @@ idf_component_register(
                   esp_driver_pcnt esp_adc esp_lcd esp_mm
                   # WiFi.h includes its header (CONFIG_NETWORK_PROV_NETWORK_TYPE_WIFI)
                   espressif__network_provisioning
+                  ${usb_components}
 )

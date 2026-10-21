@@ -23,6 +23,19 @@ export const BOARDS: Record<string, Board> = {
       "",
     ].join("\n"),
   },
+  "esp32-s3-devkitc-1": {
+    name: "ESP32-S3-DevKitC-1",
+    // Espressif's DevKitC-1 v1.1 has its RGB LED on GPIO38 (v1.0, and the generic variant: GPIO48).
+    // LED_BUILTIN is that RGB LED: digitalWrite() lights it white.
+    header: [
+      "#pragma once",
+      "#undef LED_BUILTIN",
+      "#define LED_BUILTIN (SOC_GPIO_PIN_COUNT + 38)",
+      "#undef RGB_BUILTIN",
+      "#define RGB_BUILTIN (SOC_GPIO_PIN_COUNT + 38)",
+      "",
+    ].join("\n"),
+  },
 };
 
 export const boardFor = (id: string | null): Board => BOARDS[(id ?? "").toLowerCase()] ?? BOARDS["esp32-s3"];
