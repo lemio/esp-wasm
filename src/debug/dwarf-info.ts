@@ -57,8 +57,13 @@ const AT_LOCATION = 0x02, AT_NAME = 0x03, AT_BYTE_SIZE = 0x0b, AT_CONST_VALUE = 
   AT_ENCODING = 0x3e, AT_UPPER_BOUND = 0x2f, AT_COUNT = 0x37, AT_MEMBER_LOC = 0x38, AT_TYPE = 0x49, AT_ORIGIN = 0x31,
   AT_SPEC = 0x47, AT_FRAME_BASE = 0x40;
 const OP_ADDR = 0x03, OP_FBREG = 0x91, OP_CALL_FRAME_CFA = 0x9c;
-/** DW_OP_reg/breg of a1 (the stack pointer) or a7 (the frame pointer clang sets to it at -O0). */
-const SP_LIKE = new Set([0x51, 0x57, 0x71, 0x77]);
+/**
+ * Frame bases that are the stack pointer: DW_OP_reg/breg of Xtensa's a1 (the stack pointer) or a7
+ * (the frame pointer clang sets to it at -O0), and of RISC-V's x2 (sp).
+ */
+const SP_LIKE = new Set([0x51, 0x57, 0x71, 0x77, 0x52, 0x72]);
+/** RISC-V's frame pointer s0 (x8): the stack pointer at the function's entry, which is its CFA. */
+const CFA_LIKE = new Set([0x58]);
 
 type Value = number | string | Uint8Array;
 interface Die {
@@ -305,7 +310,7 @@ export function parseDebugInfo(sections: ElfSection[], bytes: Uint8Array): Debug
   const func = (d: Die, lo: number): Func => {
     const fb = d.attrs.get(AT_FRAME_BASE);
     const op = fb instanceof Uint8Array ? fb[0] : undefined;
-    return { name: resolveName(d) ?? "?", lo, base: op === OP_CALL_FRAME_CFA ? "cfa" : op !== undefined && SP_LIKE.has(op) ? "sp" : undefined };
+    return { name: resolveName(d) ?? "?", lo, base: op === OP_CALL_FRAME_CFA || (op !== undefined && CFA_LIKE.has(op)) ? "cfa" : op !== undefined && SP_LIKE.has(op) ? "sp" : undefined };
   };
   const addVar = (d: Die, scope: [number, number], func?: Func): void => {
     const name = resolveName(d);

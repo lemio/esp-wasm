@@ -3,8 +3,9 @@
 Collect the Arduino examples that can build with this sysroot into one JSON
 file for the web app's examples panel.
 
-Sources: the arduino-esp32 core libraries and the third-party libraries in
-arduino-libraries.txt. Kept are examples of libraries that are compiled into
+Sources: the arduino-esp32 core libraries, the third-party libraries in
+arduino-libraries.txt, and this project's own examples (toolchain/examples/,
+laid out like libraries: <name>/examples/<sketch>/<sketch>.ino). Kept are examples of libraries that are compiled into
 the sysroot, whose ci.yml requirements (CONFIG_*=value) hold for our sdkconfig.
 
 An Arduino sketch is a folder <name>/<name>.ino. Other .ino files in the folder
@@ -12,7 +13,7 @@ are appended to the main one (as the Arduino IDE does); .h/.hpp/.c/.cpp files
 next to it, or under src/, become extra files.
 
   collect_examples.py --core out/components/arduino --libs out/arduino-libs \
-      --sdkconfig sysroot-project/sdkconfig --out ../public/toolchain/examples.json
+      --extra examples --sdkconfig sysroot-project/sdkconfig --out ../public/toolchain/examples.json
 """
 import argparse, json, re, sys
 from pathlib import Path
@@ -124,6 +125,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--core", type=Path, required=True, help="arduino-esp32 checkout")
     ap.add_argument("--libs", type=Path, required=True, help="out/arduino-libs")
+    ap.add_argument("--extra", type=Path, help="toolchain/examples: this project's own examples")
     ap.add_argument("--sdkconfig", type=Path, required=True)
     ap.add_argument("--out", type=Path, required=True)
     ns = ap.parse_args()
@@ -142,6 +144,10 @@ def main():
     for lib_dir in sorted(ns.libs.iterdir()):
         if lib_dir.is_dir():
             examples += examples_of(lib_dir.name, lib_dir, "library", sdk)
+    if ns.extra and ns.extra.is_dir():
+        for lib_dir in sorted(ns.extra.iterdir()):
+            if lib_dir.is_dir():
+                examples += examples_of(lib_dir.name, lib_dir, "library", sdk)
 
     ns.out.parent.mkdir(parents=True, exist_ok=True)
     ns.out.write_text(json.dumps({"examples": examples}, separators=(",", ":")))

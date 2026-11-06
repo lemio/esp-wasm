@@ -37,9 +37,13 @@ export interface Program {
   flashOffset: number;
 }
 
-const SHF_EXECINSTR = 0x4, SHF_ALLOC = 0x2, SHT_SYMTAB = 2, SHT_NOBITS = 8, STT_FUNC = 2;
+const SHF_EXECINSTR = 0x4, SHF_ALLOC = 0x2, SHT_SYMTAB = 2, SHT_NOBITS = 8, STT_FUNC = 2, STB_WEAK = 2;
 
-export function loadProgram(elfBytes: Uint8Array, app?: { data: Uint8Array; address: number }): Program {
+/**
+ * `app`: the file written to flash, and where. An ESP image is parsed into its segments; with
+ * `mapped`, it's a plain copy of the flash from its start, seen by the CPU at that address.
+ */
+export function loadProgram(elfBytes: Uint8Array, app?: { data: Uint8Array; address: number; mapped?: number }): Program {
   const elf = parseElf(elfBytes);
   const alloc = elf.sections.filter((s) => s.flags & SHF_ALLOC && s.type !== SHT_NOBITS && s.size && s.addr);
   const code = alloc.filter((s) => s.flags & SHF_EXECINSTR).map((s) => ({ name: s.name, addr: s.addr, size: s.size, data: s.data }));
@@ -57,13 +61,17 @@ export function loadProgram(elfBytes: Uint8Array, app?: { data: Uint8Array; addr
       let end = dv.getUint32(o, true);
       const start = end;
       while (strtab.data[end]) end++;
-      funcs.push({ addr: value, size, name: demangle(dec.decode(strtab.data.subarray(start, end))) });
+      funcs.push({ addr: value, size, name: demangle(dec.decode(strtab.data.subarray(start, end))), weak: info >> 4 === STB_WEAK } as Func & { weak: boolean });
     }
   }
-  funcs.sort((x, y) => x.addr - y.addr);
+  // One function per address: aliases (ch32fun's dozens of weak IRQ handler names for its
+  // DefaultIRQHandler) give way to the global symbol they stand for.
+  funcs.sort((x, y) => x.addr - y.addr || Number((x as { weak?: boolean }).weak) - Number((y as { weak?: boolean }).weak));
+  for (let i = funcs.length - 1; i > 0; i--) if (funcs[i].addr === funcs[i - 1].addr) funcs.splice(i, 1);
 
   const segments: Segment[] = [];
-  if (app && app.data[0] === 0xe9) {
+  if (app?.mapped !== undefined) segments.push({ load: app.mapped, length: app.data.length, fileOffset: 0 });
+  else if (app && app.data[0] === 0xe9) {
     const dv = new DataView(app.data.buffer, app.data.byteOffset, app.data.byteLength);
     let at = 24;
     for (let i = 0; i < app.data[1] && at + 8 <= app.data.length; i++) {

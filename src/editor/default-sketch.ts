@@ -51,3 +51,25 @@ void app_main(void)
     }
 }
 `;
+
+export const CH32V003_SOURCE = `// Blink on a CH32V003 with ch32fun (https://github.com/cnlohr/ch32fun).
+// PD6 is the LED on many CH32V003 boards (the WCH CH32V003F4P6-EVT has it on PD0).
+#include "ch32fun.h"
+
+#define LED_PIN PD6
+
+int main()
+{
+	SystemInit();
+	funGpioInitAll();
+	funPinMode(LED_PIN, GPIO_Speed_10MHz | GPIO_CNF_OUT_PP);
+
+	while (1)
+	{
+		funDigitalWrite(LED_PIN, FUN_HIGH);
+		Delay_Ms(250);
+		funDigitalWrite(LED_PIN, FUN_LOW);
+		Delay_Ms(250);
+	}
+}
+`;

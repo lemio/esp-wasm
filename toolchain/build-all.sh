@@ -14,12 +14,14 @@ mkdir -p "$STAGE"
 nice -n 15 "$HERE/scripts/mem-guard.sh" "$HERE/build-llvm.sh" "$STAGE"
 nice -n 15 "$HERE/scripts/mem-guard.sh" "$HERE/build-binutils.sh" "$STAGE"
 nice -n 15 "$HERE/build-sysroot.sh" "$STAGE"
+# CH32V003 (ch32fun): its own small sysroot and examples, built with the same llvm.wasm.
+"$HERE/build-ch32v003.sh" "$STAGE"
 
 # Examples panel: every example of the core and libraries that applies to this
 # sysroot. TEST_EXAMPLES=1 also builds each one (~1 h) and marks the ones that
 # don't build.
 python3 "$HERE/scripts/collect_examples.py" --core "$HERE/out/components/arduino" \
-  --libs "$HERE/out/arduino-libs" --sdkconfig "$HERE/sysroot-project/sdkconfig" \
+  --libs "$HERE/out/arduino-libs" --extra "$HERE/examples" --sdkconfig "$HERE/sysroot-project/sdkconfig" \
   --out "$STAGE/examples.json"
 if [[ "${TEST_EXAMPLES:-0}" == "1" ]]; then
   rm -rf "$STAGE/sysroot" && tar -C "$STAGE" -xzf "$STAGE/sysroot.tar.gz"
@@ -27,7 +29,8 @@ if [[ "${TEST_EXAMPLES:-0}" == "1" ]]; then
     --max-old-space-size=4096 "$HERE/scripts/test-examples.mjs" "$STAGE" "$STAGE/examples.json"
 fi
 
-for f in llvm.wasm ld.wasm sysroot.tar.gz sysroot-usb.tar.gz bootloader.bin partition-table.bin examples.json builtin-libraries.json; do
+for f in llvm.wasm ld.wasm sysroot.tar.gz sysroot-usb.tar.gz bootloader.bin partition-table.bin examples.json builtin-libraries.json \
+         sysroot-ch32v003.tar.gz examples-ch32v003.json; do
   cp "$STAGE/$f" "$OUT/$f"
 done
 
@@ -41,6 +44,7 @@ cat > "$OUT/manifest.json" <<JSON
   },
   "sysroot": "sysroot.tar.gz",
   "variants": { "usb": { "overlay": "sysroot-usb.tar.gz", "description": "USB mode USB-OTG (TinyUSB): for sketches that are a USB device themselves (USB.h)" } },
+  "targets": { "ch32v003": { "sysroot": "sysroot-ch32v003.tar.gz", "examples": "examples-ch32v003.json", "description": "WCH CH32V003 (RISC-V) with ch32fun" } },
   "bootloader": "bootloader.bin",
   "partitionTable": "partition-table.bin",
   "image": { "flashMode": "dio", "flashFreq": "80m", "flashSize": "4MB" }

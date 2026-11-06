@@ -1,4 +1,5 @@
 /// <reference lib="webworker" />
+import { buildCh32v003 } from "./ch32v003";
 import { BuildError, build } from "./pipeline";
 import { loadToolchain, type Toolchain } from "./toolchain";
 import { variantFor } from "./variant";
@@ -22,6 +23,11 @@ self.onmessage = async (ev: MessageEvent<WorkerRequest>) => {
     const tc = await getToolchain(req.toolchainUrl);
     if (req.type === "preload") {
       post({ type: "done", id: req.id });
+      return;
+    }
+    if (req.options.target === "ch32v003") {
+      const result = await buildCh32v003(await tc.target("ch32v003"), req.sources, log, req.options);
+      post({ type: "done", id: req.id, result }, [result.parts[0].data.buffer, result.parts[1].data.buffer]);
       return;
     }
     // a sketch that is a USB device itself (USB.h) builds against the USB-OTG (TinyUSB) sysroot

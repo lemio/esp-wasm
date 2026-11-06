@@ -39,6 +39,8 @@ export interface DebugTarget {
   stepInstruction(): Promise<void>;
   /** Why the current core is stopped. */
   stopCause(): Promise<StopCause>;
+  /** When it stopped because the program crashed: why, in words (if the target can tell). */
+  crashReason?(): string | undefined;
   readRegisters(): Promise<Registers>;
   /** The current core's cycle counter (CCOUNT): 32 bits, counting CPU clock cycles. */
   readCycleCount(): Promise<number>;
@@ -46,11 +48,12 @@ export interface DebugTarget {
   readPc(): Promise<number>;
   /**
    * The stack frames from the innermost outwards: the PC each is executing (for callers, the return
-   * address) and its stack pointer. The CPU must be halted.
+   * address), its stack pointer, and its frame base (the stack pointer before the function's
+   * prologue) where the target works that out itself. The CPU must be halted.
    */
-  readFrames(max: number): Promise<{ pc: number; sp: number }[]>;
+  readFrames(max: number): Promise<{ pc: number; sp: number; cfa?: number }[]>;
   readMemory(addr: number, length: number): Promise<Uint8Array>;
   writeMemory(addr: number, data: Uint8Array): Promise<void>;
-  /** Hardware breakpoints (the S3 has two per core); applied on the next resume or step. */
+  /** Breakpoints (the S3 has two hardware ones per core); applied on the next resume or step. */
   setBreakpoints(addrs: number[]): void;
 }

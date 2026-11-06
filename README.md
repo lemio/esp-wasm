@@ -18,9 +18,10 @@ Web Serial. No backend: the site is static files. Needs Chrome or Edge (Web Seri
 | **Arduino / ESP-IDF** | Toolbar switch. Sketches (`setup()`/`loop()`) use arduino-esp32 3.3.12 on ESP-IDF 6.0.3. ESP-IDF programs (`app_main()`) are plain C. Each mode keeps its own code. |
 | **Libraries** | Built in: the core libraries plus 16 popular ones. A missing header shows matching [PlatformIO](https://registry.platformio.org) libraries: **Install** adds one with its dependencies, and the build runs again. |
 | **Completions** | The Arduino-ESP32 API as you type: functions with their parameters, constants, `Serial.`/`Wire.`/`WiFi.` methods (inherited ones too), parameter hints, and plain-language notes on hover. Read from the sysroot's headers by `toolchain/arduino-api.mjs` (run it again after a new toolchain). |
-| **Examples** | 554 examples of the core and libraries for this configuration, searchable by title and code. |
+| **Examples** | 555 examples of the core and libraries for this configuration, searchable by title and code. |
 | **Trace** | Highlights the running line, with a fading trail of recent lines. Pause, step over/into/out, breakpoints. |
 | **Reset / Disconnect** | Restart the chip, or release the serial port for another program. |
+| **CH32V003** | A third mode for the WCH CH32V003 (RISC-V, 16 KB flash) with [ch32fun](https://github.com/cnlohr/ch32fun): compiles in the browser and flashes over the board's USB-serial chip (with WCH's UART bootloader), or downloads `ch32v003.bin`/`.hex`. 66 of ch32fun's examples. See [below](#ch32v003). |
 
 Build speed: blink ~0.4 s, a NeoPixel sketch ~2 s. A library compiles once, then it's cached.
 
@@ -130,6 +131,84 @@ explains what it shows in plain language instead of raw hex.
 
 Tested on an ESP32-S3-DevKitC-1 with Chrome on macOS, with Arduino sketches and ESP-IDF
 programs. On Windows the JTAG interface needs the WinUSB driver.
+
+## CH32V003
+
+Pick **CH32V003 (ch32fun)** in the mode menu, or open one of its examples
+(search "CH32V003"). Programs are plain C with `main()`, using
+[ch32fun](https://github.com/cnlohr/ch32fun) (MIT): `ch32fun.h` for the chip's
+registers and helpers (`funPinMode`, `funDigitalWrite`, `Delay_Ms`, …), and an
+optional `funconfig.h` for its settings.
+
+- **Build:** the same `llvm.wasm`, built with the RISC-V target: clang for
+  `rv32ec`/`ilp32e`, `ld.lld` with ch32fun's linker script, and ch32fun's
+  `libgcc.a` for multiply/divide (the core has no M extension). The result is a
+  flat image from flash address 0.
+- **Flash:** over the board's USB-serial chip (e.g. a CH340 on PD5/PD6), with
+  Web Serial. The chip has no factory UART bootloader, so WCH's USART IAP
+  bootloader ([EVT/EXAM/USART_IAP](https://github.com/openwch/ch32v003/tree/main/EVT/EXAM/USART_IAP))
+  has to be installed once with a WCH-LinkE. **Flash** builds, waits up to 20 s
+  for the bootloader (reset the board into it: right after power-up, or with PC0
+  high in its PC0 mode), erases, writes and verifies at 460800 baud, starts the
+  program and opens the serial monitor (115200, ch32fun's UART printf). Both
+  protocol versions in use are supported (`src/flasher/ch32-iap.ts`). Each build
+  also offers `ch32v003.bin`/`.hex` for minichlink or WCH-LinkUtility. Debugging
+  from the browser isn't built in.
+- **ESP32-S3 as programmer:** the ESP32-S3 example **funprog › CH32V003_Programmer**
+  (`toolchain/examples/funprog/`) runs ch32fun's funprog programmer core, so an
+  ESP32-S3 flashes and debugs a CH32V003 over its single-wire SWIO pin (GPIO 4 →
+  PD1) with minichlink (`minichlink -w ch32v003.bin flash -b`, `minichlink -T`),
+  without a WCH-LinkE or a bootloader. It's a USB HID device on the S3's native
+  USB port, with the IDs of cnlohr's ESP32-S2 programmer, so minichlink finds it
+  on its own. It needs `CONFIG_TINYUSB_HID_BUFSIZE=264` in the USB sysroot
+  (`sysroot-project/sdkconfig.usb`) for funprog's large feature reports.
+- **Flash and debug from the browser:** with **via funprog programmer (SWIO)**
+  next to Flash, the app flashes through such a programmer with WebHID
+  (`src/flasher/funprog-hid.ts`) and then connects the hardware inspector to it.
+  The program's `printf` (ch32fun's default debug printf over SWIO) shows in the
+  output, and **Inspect** opens the same inspector as the ESP32-S3's (below its
+  section, "Inspect"), with the CH32V003 behind it: pause, next line, step into,
+  single instructions, auto-step, breakpoints in the gutter, Live values, values
+  next to the code and the running line in the editor, the recording to look back
+  through, and the tabs: Variables (with sparklines), Call stack, Pins (each pin's
+  mode, pull resistor, the peripheral driving it for the current remapping, its
+  level and history), Program (RISC-V RV32EC disassembly, explained, with the
+  addresses loads and stores touch), Registers, Memory (the SVD's peripheral
+  registers, decoded) and History. Reset restarts the program while connected.
+  The chip side is `src/debug/ch32-target.ts` (a `DebugTarget`, like the
+  ESP32-S3's `xtensa-ocd.ts`) and `src/debug/jtag/chip-ch32v003.ts` (pins,
+  register names, memory map; `soc-ch32v003.ts`, with `soc/ch32v003.json`
+  generated from ch32fun's `CH32V003xx.svd` by `toolchain/scripts/gen-soc-ch32v003.py`).
+  The CH32V003's core has no hardware breakpoints, so breakpoints are `c.ebreak`
+  written into flash (as minichlink's GDB server does), from the image last
+  flashed from the page: on connecting, the flash is compared with it, and
+  breakpoints are only used when they match. They stay in flash while the
+  program is paused (Live values pause it often) and reads of the flash show the
+  original code; continuing from a breakpoint runs its instruction from the
+  debug module's program buffer, so stepping and continuing rewrite no flash
+  (only a jump or branch under a breakpoint takes it out for one step).
+  Disconnecting, flashing again or closing the page takes them out; ones left by
+  a session that ended abruptly are found and removed on the next connect.
+  A jump, branch or call under a breakpoint isn't run at all: its effect is
+  computed from the registers. Breakpoints in code that runs from RAM (ch32fun's
+  "function in RAM" example) are written straight into RAM, and put back after a
+  Restart once `main()` starts. A breakpoint on ch32fun's `DefaultIRQHandler` is
+  always in: a crash (a bad pointer, an unhandled interrupt) stops there, and the
+  inspector says why (from `mcause`), shows the line that failed (`mepc`) and the
+  call stack from there. Halting sets DCSR's `stoptime` in the same USB report,
+  so SysTick stands still while the program is paused (a reset clears it; a
+  program that schedules its next SysTick interrupt 1 ms ahead would otherwise
+  miss it for good). The watchdogs and TIM1/TIM2 keep running while paused (the
+  CPU can't reach DBG_CR, which would freeze them). In standby the chip's debug
+  link is off: the inspector waits for it, and Flash keeps trying for 30 s; a
+  program that sleeps again right after waking needs the CH32V003 powered off and
+  on while Flash is trying.
+- **Not built in clang:** `self_modify_code` (its inline asm defines a label,
+  which clang emits twice).
+- **Sysroot:** `toolchain/build-ch32v003.sh` (4 MB, downloaded the first time
+  you build for the CH32V003). ch32fun is pinned to a commit and patched for
+  clang in `toolchain/patches/ch32fun.patch`: GCC accepts C statements in
+  `naked` functions, clang only asm.
 
 ## Embedding projects in other pages
 
