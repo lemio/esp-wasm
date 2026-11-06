@@ -50,6 +50,8 @@ const BLOCK = 64;
 export const FUNPROG_MAX_APP = 16 * 1024;
 
 const DMCONTROL = 0x10;
+const DMABSTRACTCS = 0x16;
+const DMABSTRACTAUTO = 0x18;
 const DMCFGR = 0x7d;
 const DMSHDWCFGR = 0x7e;
 
@@ -60,6 +62,13 @@ export function webHidSupported(): boolean {
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 const le32 = (v: number) => [v & 0xff, (v >>> 8) & 0xff, (v >>> 16) & 0xff, (v >>> 24) & 0xff];
 const hex = (v: number, n = 8) => `0x${(v >>> 0).toString(16).padStart(n, "0")}`;
+const le32of = (b: Uint8Array, at: number) => (b[at] | (b[at + 1] << 8) | (b[at + 2] << 16) | (b[at + 3] << 24)) >>> 0;
+const writeRegCmd = (reg: number, value: number) => [((reg - 1) << 1) | 1, ...le32(value)];
+/**
+ * Start funprog's memory commands from scratch: autoexec off, cmderr cleared, its cached state
+ * voided (so the next read or write sets the debug module up again instead of trusting it).
+ */
+const RESET_STATE = [...writeRegCmd(DMABSTRACTAUTO, 0), ...writeRegCmd(DMABSTRACTCS, 0x700), 0xfe, 0x05];
 
 /**
  * One exchange at a time per programmer, across every FunprogHid that uses it (the inspector's
@@ -208,7 +217,15 @@ export class FunprogHid {
     this.log(`Target: debug id ${hex(sevenf)}, chip ${hex(chip & 0x7fff, 4)}`);
   }
 
-  /** Erase and write the image from the start of flash (64-byte blocks), then verify it. */
+  /**
+   * Erase and write the image from the start of flash (64-byte blocks), then verify it.
+   *
+   * SWIO bit-banging isn't error-free: now and then a bit reads back wrong. funprog's reads are
+   * pipelined (autoexec: each DATA0 read fetches the next word), and one misread status makes
+   * ReadWord bail out without reading DATA0, after which every following read in the sequence
+   * returns the word before the one asked for. So: on a bad status or a mismatch, void funprog's
+   * state and read again from that word; only a word that keeps reading wrong is rewritten.
+   */
   async flash(image: Uint8Array, progress: (pct: number, stage: string) => void): Promise<void> {
     if (image.length > FUNPROG_MAX_APP) throw new Error(`The program is ${image.length} bytes; the CH32V003 has 16384 bytes of flash`);
     const padded = new Uint8Array(Math.ceil(image.length / BLOCK) * BLOCK).fill(0xff);
@@ -218,33 +235,74 @@ export class FunprogHid {
     // Three blocks per report (70 bytes of command each).
     const PER = 3;
     for (let b = 0; b < blocks; b += PER) {
-      const cmds: number[] = [];
       const n = Math.min(PER, blocks - b);
-      for (let i = 0; i < n; i++) {
-        const off = (b + i) * BLOCK;
-        cmds.push(0xfe, 0x0b, ...le32(FLASH_BASE + off), ...padded.subarray(off, off + BLOCK));
-      }
+      const cmds: number[] = [];
+      for (let i = 0; i < n; i++) cmds.push(...this.writeBlockCmd(padded, b + i));
       const r = await this.transact(cmds, n);
-      const bad = [...r.subarray(0, n)].findIndex((s) => s !== 0);
-      if (bad >= 0) throw new Error(`Writing the block at ${hex(FLASH_BASE + (b + bad) * BLOCK)} failed (code ${(r[bad] << 24) >> 24})`);
+      for (let i = 0; i < n; i++) {
+        if (r[i] !== 0) await this.writeBlock(padded, b + i); // retried on its own
+      }
       progress(Math.round(((b + n) / blocks) * 100), "Writing");
     }
 
     // Read it back, 40 words per report (5 bytes of reply each).
     const words = padded.length / 4;
     const PER_READ = 40;
-    for (let w = 0; w < words; w += PER_READ) {
+    const RETRIES = 4;
+    const misreads = new Map<number, number>();
+    const rewrites = new Map<number, number>();
+    let w = 0;
+    while (w < words) {
       const n = Math.min(PER_READ, words - w);
-      const cmds: number[] = [];
+      const cmds = [...RESET_STATE];
       for (let i = 0; i < n; i++) cmds.push(0xfe, 0x09, ...le32(FLASH_BASE + (w + i) * 4));
       const r = await this.transact(cmds, n * 5);
-      for (let i = 0; i < n; i++) {
+      let bad = -1;
+      for (let i = 0; i < n && bad < 0; i++) {
         const at = (w + i) * 4;
-        const ok = r[i * 5] === 0 && [0, 1, 2, 3].every((k) => r[i * 5 + 1 + k] === padded[at + k]);
-        if (!ok) throw new Error(`Verify failed at ${hex(FLASH_BASE + at)}`);
+        if (r[i * 5] !== 0 || ![0, 1, 2, 3].every((k) => r[i * 5 + 1 + k] === padded[at + k])) bad = i;
       }
-      progress(Math.round(((w + n) / words) * 100), "Verifying");
+      if (bad < 0) {
+        w += n;
+        progress(Math.round((w / words) * 100), "Verifying");
+        continue;
+      }
+      // Everything after a bad read is suspect (see above): start again from it, with a fresh state.
+      w += bad;
+      const tries = (misreads.get(w) ?? 0) + 1;
+      misreads.set(w, tries);
+      if (tries <= RETRIES) continue;
+      // It keeps reading wrong: the write didn't take. Write its block again and verify from there.
+      const block = Math.floor((w * 4) / BLOCK);
+      const again = (rewrites.get(block) ?? 0) + 1;
+      if (again > 2) {
+        const at = w * 4;
+        const got = r[bad * 5] !== 0 ? `error ${(r[bad * 5] << 24) >> 24}` : hex(le32of(r, bad * 5 + 1));
+        throw new Error(`Verify failed at ${hex(FLASH_BASE + at)}: wrote ${hex(le32of(padded, at))}, reads ${got}`);
+      }
+      rewrites.set(block, again);
+      this.log(`Verify: the word at ${hex(FLASH_BASE + w * 4)} reads wrong; writing its block again`);
+      await this.writeBlock(padded, block);
+      for (let k = block * (BLOCK / 4); k < (block + 1) * (BLOCK / 4); k++) misreads.delete(k);
+      w = block * (BLOCK / 4);
     }
+  }
+
+  /** Command: erase and write block `b` of `image`. */
+  private writeBlockCmd(image: Uint8Array, b: number): number[] {
+    const off = b * BLOCK;
+    return [0xfe, 0x0b, ...le32(FLASH_BASE + off), ...image.subarray(off, off + BLOCK)];
+  }
+
+  /** Erase and write one block on its own, with a fresh funprog state, retried a few times. */
+  private async writeBlock(image: Uint8Array, b: number): Promise<void> {
+    let code = 0;
+    for (let attempt = 0; attempt < 3; attempt++) {
+      const r = await this.transact([...RESET_STATE, ...this.writeBlockCmd(image, b)], 1);
+      code = r[0];
+      if (code === 0) return;
+    }
+    throw new Error(`Writing the block at ${hex(FLASH_BASE + b * BLOCK)} failed (code ${(code << 24) >> 24})`);
   }
 
   /** Reset the chip and let it run (minichlink's HALT_MODE_REBOOT). */

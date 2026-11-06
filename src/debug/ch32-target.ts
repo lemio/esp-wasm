@@ -227,9 +227,17 @@ export class Ch32Target implements DebugTarget {
       return;
     }
     await this.beforeMemoryOps();
-    const flash = await this.readWords(FLASH_BASE, Math.ceil(p.image.length / 4));
+    // SWIO reads now and then get a bit wrong: a difference only counts when it reads the same
+    // way again (a misread won't turn into the expected byte by chance).
+    const words = Math.ceil(p.image.length / 4);
+    let flash = await this.readWords(FLASH_BASE, words);
     const stray: number[] = [];
     for (let i = 0; i < p.image.length; i++) {
+      for (let again = 0; flash[i] !== p.image[i] && again < 2; again++) {
+        const w = i >> 2;
+        const reread = await this.readWords(FLASH_BASE + w * 4, 1).catch(() => undefined);
+        if (reread) flash = Uint8Array.from(flash, (b, k) => (k >> 2 === w ? reread[k & 3] : b));
+      }
       if (flash[i] === p.image[i]) continue;
       const a = i & ~1;
       if (flash[a] === C_EBREAK[0] && flash[a + 1] === C_EBREAK[1]) {
