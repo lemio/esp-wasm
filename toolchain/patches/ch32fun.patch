@@ -1,0 +1,73 @@
+diff --git a/ch32fun/ch32fun.c b/ch32fun/ch32fun.c
+index d76e7a0..69114c3 100644
+--- a/ch32fun/ch32fun.c
++++ b/ch32fun/ch32fun.c
+@@ -1192,15 +1192,29 @@ asm volatile(
+ );
+ 
+ #if defined( FUNCONF_SYSTICK_USE_HCLK ) && FUNCONF_SYSTICK_USE_HCLK
+-	SysTick->CTLR = 5;
++#define FUN_SYSTICK_CTLR_INIT 5
+ #else
+-	SysTick->CTLR = 1;
++#define FUN_SYSTICK_CTLR_INIT 1
+ #endif
++#ifdef __clang__
++	// esp-wasm: clang allows only asm (no C, no register operands) in naked
++	// functions. Same as below: start SysTick, then mret into main.
++asm volatile(
++"	li a1, %[ctlr]\n"
++"	li a0, %[val]\n"
++"	sw a0, 0(a1)\n"
++"	la a0, main\n"
++"	csrw mepc, a0\n"
++"	mret\n" : : [ctlr]"i"(SysTick_BASE), [val]"i"(FUN_SYSTICK_CTLR_INIT) : "a0", "a1" );
++#else
++	SysTick->CTLR = FUN_SYSTICK_CTLR_INIT;
+ 
+ 	// set mepc to be main as the root app.
+ asm volatile(
+ "	csrw mepc, %[main]\n"
+ "	mret\n" : : [main]"r"(main) );
++#endif
++#undef FUN_SYSTICK_CTLR_INIT
+ }
+ 
+ #elif defined(CH32V10x) || defined(CH32V20x) || defined(CH32V30x) || defined(CH32L103) ||  defined(CH5xx)
+@@ -1558,7 +1572,9 @@ __attribute__ ((naked)) void longjmp( jmp_buf env, int val )
+ "	add a0, a0, a1\n"
+ "	ret\n"
+ 	);
++#ifndef __clang__ // esp-wasm: clang allows only asm in naked functions
+ 	__builtin_unreachable(); // Disable warning about no return.
++#endif
+ }
+ 
+ #if defined( FUNCONF_USE_UARTPRINTF ) && FUNCONF_USE_UARTPRINTF
+diff --git a/ch32fun/ch32fun.h b/ch32fun/ch32fun.h
+index e30fddc..38ea371 100644
+--- a/ch32fun/ch32fun.h
++++ b/ch32fun/ch32fun.h
+@@ -1035,10 +1035,20 @@ int funAnalogRead( int nAnalogNumber );
+ #endif
+ 
+ 
+-void DefaultIRQHandler( void ) __attribute__((section(VECTOR_HANDLER_SECTION))) __attribute__((naked)) __attribute__((used));
++// esp-wasm: clang (unlike GCC) rejects C statements in naked functions.
++// DefaultIRQHandler never returns, so it needs no naked; the NMI handler returns
++// from an interrupt, so it's an interrupt function (mret) instead.
++#ifdef __clang__
++#define FUN_C_HANDLER_NAKED
++#define FUN_C_HANDLER_RETURNS __attribute__((interrupt))
++#else
++#define FUN_C_HANDLER_NAKED __attribute__((naked))
++#define FUN_C_HANDLER_RETURNS __attribute__((naked))
++#endif
++void DefaultIRQHandler( void ) __attribute__((section(VECTOR_HANDLER_SECTION))) FUN_C_HANDLER_NAKED __attribute__((used));
+ // used to clear the CSS flag in case of clock fail switch
+ #if defined(FUNCONF_USE_CLK_SEC) && FUNCONF_USE_CLK_SEC
+-	void NMI_RCC_CSS_IRQHandler( void ) __attribute__((section(VECTOR_HANDLER_SECTION))) __attribute__((naked)) __attribute__((used));
++	void NMI_RCC_CSS_IRQHandler( void ) __attribute__((section(VECTOR_HANDLER_SECTION))) FUN_C_HANDLER_RETURNS __attribute__((used));
+ #endif
+ 
+ void funRebootToBootloader();

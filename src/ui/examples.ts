@@ -12,7 +12,8 @@ export interface ExampleFile {
 export interface Example {
   id: string;
   library: string;
-  kind: "core" | "library";
+  /** ch32v003: a ch32fun program for the CH32V003 (opens in that mode). */
+  kind: "core" | "library" | "ch32v003";
   title: string;
   path: string;
   files: ExampleFile[];
@@ -28,6 +29,17 @@ interface Indexed {
 
 const MAX_RESULTS = 200;
 const URL_ = () => new URL("toolchain/examples.json", document.baseURI).href;
+// ch32fun's CH32V003 examples, from toolchain/build-ch32v003.sh (optional: older toolchains lack it).
+const CH32_URL = () => new URL("toolchain/examples-ch32v003.json", document.baseURI).href;
+async function ch32Examples(): Promise<Example[]> {
+  try {
+    const res = await fetch(CH32_URL());
+    if (!res.ok || !res.headers.get("content-type")?.includes("json")) return [];
+    return ((await res.json()) as { examples: Example[] }).examples;
+  } catch {
+    return [];
+  }
+}
 
 export class ExamplesPanel {
   private index?: Indexed[];
@@ -115,7 +127,8 @@ export class ExamplesPanel {
         if (!res.ok || !res.headers.get("content-type")?.includes("json")) {
           throw new Error("toolchain/examples.json is missing on the server; rebuild and upload dist/");
         }
-        const { examples } = (await res.json()) as { examples: Example[] };
+        const { examples: esp } = (await res.json()) as { examples: Example[] };
+        const examples = [...esp, ...(await ch32Examples())];
         this.index = examples.map((ex) => ({
           ex,
           meta: `${ex.title} ${ex.library} ${ex.path}`.toLowerCase(),
@@ -208,7 +221,7 @@ export class ExamplesPanel {
 }
 
 function groupName(ex: Example): string {
-  return ex.kind === "core" ? `Arduino core › ${ex.library}` : ex.library;
+  return ex.kind === "core" ? `Arduino core › ${ex.library}` : ex.kind === "ch32v003" ? `CH32V003 › ${ex.library}` : ex.library;
 }
 
 function badge(text: string, cls: string, title?: string): HTMLElement {

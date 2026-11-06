@@ -19,6 +19,11 @@ export interface ToolchainManifest {
    * "usb": USB mode USB-OTG (TinyUSB), for sketches that use the S3's USB port themselves (USB.h).
    */
   variants?: Record<string, { overlay: string; description?: string }>;
+  /**
+   * Other chips, each with its own sysroot (not laid over the ESP32-S3's), built
+   * with the same clang. "ch32v003": toolchain/build-ch32v003.sh.
+   */
+  targets?: Record<string, { sysroot: string; examples?: string; description?: string }>;
   bootloader: string;
   partitionTable: string;
   image: { flashMode: "qio" | "dio"; flashFreq: "80m" | "40m"; flashSize: "2MB" | "4MB" | "8MB" | "16MB" };
@@ -30,6 +35,8 @@ export interface Toolchain {
   files: Map<string, Uint8Array>;
   /** The toolchain with a sysroot variant laid over the base one (downloaded on first use). */
   variant(name: string): Promise<Toolchain>;
+  /** The toolchain for another chip: the same clang with that chip's sysroot (downloaded on first use). */
+  target(name: string): Promise<Toolchain>;
   clang: WebAssembly.Module;
   ld: WebAssembly.Module;
   vfs: Vfs;
@@ -89,6 +96,7 @@ export async function loadToolchain(manifestUrl: string, log: Log): Promise<Tool
     }
   }
   const variants = new Map<string, Promise<Toolchain>>();
+  const targets = new Map<string, Promise<Toolchain>>();
   const tc: Toolchain = {
     manifest, files, clang, ld, vfs, bootloader, partitionTable,
     variant(name) {
@@ -104,6 +112,17 @@ export async function loadToolchain(manifestUrl: string, log: Log): Promise<Tool
         })().catch((e) => { variants.delete(name); throw e; }));
       }
       return variants.get(name)!;
+    },
+    target(name) {
+      const t = manifest.targets?.[name];
+      if (!t) return Promise.reject(new Error(`This toolchain can't build for the ${name.toUpperCase()} yet (no sysroot for it)`));
+      if (!targets.has(name)) {
+        targets.set(name, (async () => {
+          const own = untar(await gunzip(await get(t.sysroot)));
+          return { ...tc, manifest: { ...manifest, version: `${manifest.version}+${name}` }, files: own, vfs: new Vfs(own) };
+        })().catch((e) => { targets.delete(name); throw e; }));
+      }
+      return targets.get(name)!;
     },
   };
   return tc;

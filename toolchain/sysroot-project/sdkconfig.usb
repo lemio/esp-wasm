@@ -9,3 +9,6 @@ CONFIG_TINYUSB_MSC_ENABLED=y
 CONFIG_TINYUSB_VENDOR_ENABLED=y
 # The USB-Serial/JTAG peripheral is off while TinyUSB uses the port: no console mirror on it
 CONFIG_ESP_CONSOLE_SECONDARY_NONE=y
+# Feature reports up to 264 bytes (report ID + 263): funprog's largest (examples/funprog). TinyUSB stalls
+# a SET_REPORT longer than this buffer and cuts a GET_REPORT to it; the default is 64.
+CONFIG_TINYUSB_HID_BUFSIZE=264

@@ -4276,6 +4276,8 @@ CONFIG_ARDUINO_SELECTIVE_Console=y
 CONFIG_ARDUINO_SELECTIVE_HTTPUpdate=y
 # default:
 CONFIG_ARDUINO_SELECTIVE_HTTPUpdateServer=y
+# default:
+CONFIG_ARDUINO_SELECTIVE_USB=y
 # end of esp-wasm Arduino libraries
 
 #

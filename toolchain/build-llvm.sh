@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Build Espressif's LLVM fork (clang + lld, Xtensa only) as one multicall
+# Build Espressif's LLVM fork (clang + lld; Xtensa for the ESP32-S3, RISC-V for
+# the CH32V003) as one multicall
 # wasm32-wasip1 binary: llvm.wasm, invoked with argv[0] = clang | ld.lld.
 #
 # Recipe adapted from YoWASP (https://github.com/YoWASP/clang). The WASI
@@ -19,6 +20,8 @@ WORK="${WORK:-$HERE/out/llvm}"
 # LLVM compile jobs use ~1 GB each and links several GB. Keep this low on
 # laptops: an unbounded build has panicked a 16 GB Mac.
 JOBS="${JOBS:-3}"
+# Standard LLVM targets next to Xtensa (experimental in LLVM). RISCV: CH32V003.
+TARGETS="${LLVM_TARGETS:-RISCV}"
 mkdir -p "$WORK" && cd "$WORK"
 
 if [[ ! -d src ]]; then
@@ -29,12 +32,13 @@ if git -C src apply --check "$HERE/patches/llvm-wasi-posix.patch" 2>/dev/null; t
 fi
 
 # 1. Native table generators, run during the cross build.
-if [[ ! -x native/bin/llvm-tblgen || ! -x native/bin/clang-tblgen ]]; then
+if [[ ! -x native/bin/llvm-tblgen || ! -x native/bin/clang-tblgen || ! -x native/bin/llvm-min-tblgen || native/.targets != "$TARGETS" ]]; then
   cmake -B native -S src/llvm -G Ninja -DCMAKE_BUILD_TYPE=Release \
-    -DLLVM_TARGETS_TO_BUILD="" -DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=Xtensa \
+    -DLLVM_TARGETS_TO_BUILD="$TARGETS" -DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=Xtensa \
     -DLLVM_ENABLE_PROJECTS=clang -DLLVM_INCLUDE_TESTS=OFF -DLLVM_INCLUDE_BENCHMARKS=OFF \
     -DLLVM_INCLUDE_EXAMPLES=OFF -DLLVM_BUILD_TOOLS=OFF -DCLANG_BUILD_TOOLS=OFF
   ninja -j"$JOBS" -C native llvm-tblgen clang-tblgen
+  echo "$TARGETS" > native/.targets
 fi
 
 # 2. Cross-compile to wasm32-wasip1.
@@ -82,7 +86,7 @@ cmake -B wasi -S src/llvm -G Ninja \
   -DLLVM_BUILD_RUNTIME=OFF -DLLVM_BUILD_TOOLS=OFF -DLLVM_INCLUDE_UTILS=OFF -DLLVM_BUILD_UTILS=OFF \
   -DLLVM_INCLUDE_RUNTIMES=OFF -DLLVM_INCLUDE_EXAMPLES=OFF -DLLVM_INCLUDE_TESTS=OFF \
   -DLLVM_INCLUDE_BENCHMARKS=OFF -DLLVM_INCLUDE_DOCS=OFF \
-  -DLLVM_TARGETS_TO_BUILD="" -DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=Xtensa \
+  -DLLVM_TARGETS_TO_BUILD="$TARGETS" -DLLVM_EXPERIMENTAL_TARGETS_TO_BUILD=Xtensa \
   -DLLVM_DEFAULT_TARGET_TRIPLE=xtensa-esp-elf \
   -DLLVM_TOOL_LLVM_DRIVER_BUILD=ON \
   "${TOOLS_OFF[@]}" \

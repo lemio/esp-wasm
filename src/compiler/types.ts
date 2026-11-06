@@ -1,7 +1,12 @@
 /** Message protocol between the main thread and compiler.worker.ts. */
 import type { LineTable } from "../debug/line-table";
 
+/** The chips the IDE builds for. */
+export type Target = "esp32s3" | "ch32v003";
+
 export interface BuildOptions {
+  /** The chip to build for (default: the ESP32-S3). */
+  target?: Target;
   /** Extra preprocessor definitions, e.g. "ARDUINO_USB_CDC_ON_BOOT=1". */
   defines?: string[];
   /** Line tracing: instrument the user's code so the running line can be shown. */

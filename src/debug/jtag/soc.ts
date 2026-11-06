@@ -35,13 +35,13 @@ export interface Peripheral {
   regs: Register[];
 }
 
-interface Db {
+export interface Db {
   peripherals: Peripheral[];
   iomux: Record<string, { off: number; pad: string; funcs: Record<string, string> }>;
   signals: { in: Record<string, string>; out: Record<string, string> };
 }
 
-type RawDb = {
+export type RawDb = {
   peripherals: { title: string; base: number; size: number; regs: [number, string, string, [string, number, number, string, string][]][] }[];
   iomux: Db["iomux"];
   signals: Db["signals"];
@@ -55,15 +55,7 @@ export const soc = () => db;
 
 export function loadSoc(): Promise<Db> {
   loading ??= fetch(dbUrl).then((r) => r.json() as Promise<RawDb>).then((raw) => {
-    const peripherals = raw.peripherals.map((p) => {
-      const per: Peripheral = { title: p.title, base: p.base, size: p.size, intro: INTROS[p.title.split(" (")[0]] ?? INTROS[p.title] ?? "", regs: [] };
-      per.regs = p.regs.map(([off, name, desc, fields]) => ({
-        addr: p.base + off, name, desc, peripheral: per,
-        fields: fields.map(([fname, lo, hi, access, fdesc]) => ({ name: fname, lo, hi, access, desc: fdesc })),
-      }));
-      return per;
-    });
-    return (db = { peripherals, iomux: raw.iomux, signals: raw.signals });
+    return (db = parseDb(raw, (title) => INTROS[title.split(" (")[0]] ?? INTROS[title] ?? ""));
   });
   return loading;
 }
@@ -394,3 +386,38 @@ export function cpuHz(sysclk: number | undefined, perConf: number | undefined): 
 
 /** GPIO numbers that exist on the ESP32-S3. */
 export const GPIOS = [...Array(49).keys()].filter((g) => g < 22 || g > 25);
+
+/**
+ * What the inspector needs to know about a chip's address space: its memory map, its peripheral
+ * registers and how to read them. One per chip (this file: the ESP32-S3; soc-ch32v003.ts).
+ */
+export interface SocApi {
+  regions: Region[];
+  regionAt(addr: number): Region | undefined;
+  /** The register database; undefined until `load()` has finished. */
+  db(): Db | undefined;
+  load(): Promise<Db>;
+  registerAt(addr: number): Register | undefined;
+  peripheralAt(addr: number): Peripheral | undefined;
+  readSideEffect(reg: Register): string | undefined;
+  safeToRead(addr: number): boolean;
+  registerNotes(reg: Register): string[];
+  decodeRegister(reg: Register, value: number, peek?: (addr: number) => number | undefined): DecodedField[];
+}
+
+export const esp32s3Soc: SocApi = {
+  regions: REGIONS, regionAt, db: soc, load: loadSoc, registerAt, peripheralAt, readSideEffect, safeToRead, registerNotes, decodeRegister,
+};
+
+/** Build a peripheral database from its JSON form. */
+export function parseDb(raw: RawDb, intro: (title: string) => string): Db {
+  const peripherals = raw.peripherals.map((p) => {
+    const per: Peripheral = { title: p.title, base: p.base, size: p.size, intro: intro(p.title), regs: [] };
+    per.regs = p.regs.map(([off, name, desc, fields]) => ({
+      addr: p.base + off, name, desc, peripheral: per,
+      fields: fields.map(([fname, lo, hi, access, fdesc]) => ({ name: fname, lo, hi, access, desc: fdesc })),
+    }));
+    return per;
+  });
+  return { peripherals, iomux: raw.iomux, signals: raw.signals };
+}
