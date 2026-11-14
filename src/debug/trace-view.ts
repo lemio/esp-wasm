@@ -4,6 +4,7 @@
  * pause / step / continue and breakpoints.
  */
 import * as monaco from "monaco-editor";
+import { BuiltSources } from "./line-map";
 import {
   type LineTable, type SourceLocation, formatRanges, locate, rangesForLine, rangesOfLineAt,
 } from "./line-table";
@@ -68,6 +69,8 @@ export class Debugger {
   private readonly trail = new Map<string, number>();
   private readonly trailDecorations = new Map<monaco.editor.ITextModel, string[]>();
   private trailTimer?: number;
+  /** The code the attached build was made from: its line numbers, placed on the code now. */
+  private readonly built: BuiltSources<monaco.editor.ITextModel>;
   state: DebugState = "off";
   /**
    * The JTAG inspector is in control: the runtime must not also stop at the breakpoints (both
@@ -86,6 +89,16 @@ export class Debugger {
     private readonly send: (command: string) => Promise<void>,
     private readonly onChange: (d: Debugger, loc: SourceLocation | undefined) => void,
   ) {
+    this.built = new BuiltSources(modelFor);
+    // Edited code: place the running line again (or drop it, when its code changed).
+    let edited: number | undefined;
+    editor.onDidChangeModelContent(() => {
+      clearTimeout(edited);
+      edited = window.setTimeout(() => {
+        if (this.last) this.markExec(this.last, this.state === "stopped", false);
+        this.renderTrail();
+      }, 150);
+    });
     // Click in the gutter: toggle a breakpoint.
     editor.onMouseDown((e) => {
       const t = e.target;
@@ -110,9 +123,10 @@ export class Debugger {
     return this.state !== "off" && this.canControl;
   }
 
-  /** The build now on the chip (undefined: not a Trace build). */
-  attach(table: LineTable | undefined): void {
+  /** The build now on the chip (undefined: not a Trace build), and the code it was built from (by compiled path). */
+  attach(table: LineTable | undefined, sources: Iterable<[string, string]> = []): void {
     this.table = table;
+    this.built.set(sources);
     this.canControl = false;
     this.stoppedAt = undefined;
     this.state = table ? "running" : "off";
@@ -214,7 +228,9 @@ export class Debugger {
     const set = this.breakpoints.get(file) ?? new Set<number>();
     this.breakpoints.set(file, set);
     // With a line table, snap to the line that has code (and toggle that one).
-    const snapped = this.table ? rangesForLine(this.table, file, line)?.line ?? line : line;
+    const builtLine = this.table ? this.built.builtLine(file, line) : undefined;
+    const snappedBuilt = this.table && builtLine ? rangesForLine(this.table, file, builtLine)?.line : undefined;
+    const snapped = (snappedBuilt && this.built.nowLine(file, snappedBuilt)) || line;
     if (set.has(line)) set.delete(line);
     else if (set.has(snapped)) set.delete(snapped);
     else set.add(snapped);
@@ -227,11 +243,12 @@ export class Debugger {
   }
 
   /** Start address of the code of every breakpoint line, for hardware breakpoints. */
-  breakpointAddresses(table: LineTable): number[] {
+  breakpointAddresses(table: LineTable, builtLine: (file: string, line: number) => number | undefined): number[] {
     const addrs: number[] = [];
     for (const [file, lines] of this.breakpoints) {
       for (const line of lines) {
-        const r = rangesForLine(table, file, line)?.ranges[0];
+        const at = builtLine(file, line); // none: code added or changed since that build
+        const r = at ? rangesForLine(table, file, at)?.ranges[0] : undefined;
         if (r) addrs.push(r[0]);
       }
     }
@@ -242,7 +259,10 @@ export class Debugger {
     if (!this.table || !this.controllable) return;
     const ranges: [number, number][] = [];
     for (const [file, lines] of this.hardware ? [] : this.breakpoints) {
-      for (const line of lines) ranges.push(...(rangesForLine(this.table, file, line)?.ranges ?? []));
+      for (const line of lines) {
+        const at = this.built.builtLine(file, line);
+        if (at) ranges.push(...(rangesForLine(this.table, file, at)?.ranges ?? []));
+      }
     }
     await this.send(`\x1b_esp-wasm:b ${formatRanges(ranges.slice(0, 64))}\x1b\\`);
   }
@@ -277,11 +297,18 @@ export class Debugger {
     if (!loc) return; // in code without line info (core, libraries): keep the last user line
     if (!stopped && this.last && loc.file === this.last.file && loc.line === this.last.line) return;
     this.last = loc;
+    this.markExec(loc, stopped, stopped);
+    this.onChange(this, loc);
+  }
+
+  /** Highlight the running line (a line of the build, placed on the code now; none when that code changed). */
+  private markExec(loc: SourceLocation, stopped: boolean, reveal: boolean): void {
     const model = this.modelFor(loc.file);
+    const line = this.built.nowLine(loc.file, loc.line);
     this.clearExec();
-    if (model && loc.line <= model.getLineCount()) {
+    if (model && line) {
       const ids = model.deltaDecorations([], [{
-        range: new monaco.Range(loc.line, 1, loc.line, 1),
+        range: new monaco.Range(line, 1, line, 1),
         options: {
           isWholeLine: true,
           className: stopped ? "exec-line stopped" : "exec-line",
@@ -295,11 +322,10 @@ export class Debugger {
       this.execDecoration = { model, ids };
       // Running: never scroll (the minimap shows where it is). Stopped: bring the
       // line into view if it's off-screen, so a step or breakpoint shows its line.
-      if (stopped && this.editor.getModel() === model) {
-        this.editor.revealLineInCenterIfOutsideViewport(loc.line, monaco.editor.ScrollType.Smooth);
+      if (reveal && this.editor.getModel() === model) {
+        this.editor.revealLineInCenterIfOutsideViewport(line, monaco.editor.ScrollType.Smooth);
       }
     }
-    this.onChange(this, loc);
   }
 
   // ---- the trail: lines that ran recently, fading out ----
@@ -315,8 +341,8 @@ export class Debugger {
       }
       const sep = key.lastIndexOf(":");
       const model = this.modelFor(key.slice(0, sep));
-      const line = Number(key.slice(sep + 1));
-      if (!model || model.isDisposed() || line > model.getLineCount()) continue;
+      const line = this.built.nowLine(key.slice(0, sep), Number(key.slice(sep + 1)));
+      if (!model || model.isDisposed() || !line) continue;
       const step = Math.min(TRAIL_STEPS, 1 + Math.floor((age / TRAIL_MS) * TRAIL_STEPS));
       const list = byModel.get(model) ?? [];
       list.push({

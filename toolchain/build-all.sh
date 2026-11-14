@@ -37,14 +37,14 @@ done
 IDF_VER="$(git -C "${IDF_PATH:-$HERE/out/esp-idf}" describe --tags 2>/dev/null || echo idf)"
 cat > "$OUT/manifest.json" <<JSON
 {
-  "version": "$(date -u +%Y%m%d%H%M)-$IDF_VER",
+  "version": "202611141634-v6.0.3",
   "tools": {
     "clang": { "url": "llvm.wasm", "argv0": "clang" },
     "ld": { "url": "ld.wasm", "argv0": "ld" }
   },
   "sysroot": "sysroot.tar.gz",
   "variants": { "usb": { "overlay": "sysroot-usb.tar.gz", "description": "USB mode USB-OTG (TinyUSB): for sketches that are a USB device themselves (USB.h)" } },
-  "targets": { "ch32v003": { "sysroot": "sysroot-ch32v003.tar.gz", "examples": "examples-ch32v003.json", "description": "WCH CH32V003 (RISC-V) with ch32fun" } },
+  "targets": { "ch32v003": { "sysroot": "sysroot-ch32v003.tar.gz", "examples": "examples-ch32v003.json", "description": "WCH CH32V003 and CH32X035 (RISC-V) with ch32fun and WCH's Arduino core" } },
   "bootloader": "bootloader.bin",
   "partitionTable": "partition-table.bin",
   "image": { "flashMode": "dio", "flashFreq": "80m", "flashSize": "4MB" }

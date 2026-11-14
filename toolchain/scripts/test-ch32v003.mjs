@@ -23,7 +23,10 @@ let ok = 0, failed = 0;
 for (const ex of doc.examples) {
   if (filter && !ex.path.includes(filter)) continue;
   try {
-    const r = await buildCh32v003(tc, ex.files, () => {});
+    const framework = ex.kind === "ch32v003-arduino" ? "arduino" : "ch32fun";
+    const r = await buildCh32v003(tc, ex.files, () => {}, { framework, chip: ex.chip ?? "ch32v003" });
+    // ELF_DIR=…: keep the linked programs, e.g. to disassemble them.
+    if (process.env.ELF_DIR) await writeFile(`${process.env.ELF_DIR}/${ex.path.replaceAll("/", "_")}.elf`, r.elf);
     ex.status = { ok: true };
     ok++;
     console.log(`ok   ${ex.path} (${r.parts[0].data.length} bytes)`);

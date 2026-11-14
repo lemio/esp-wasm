@@ -1,7 +1,6 @@
 /**
- * A RISC-V disassembler for the CH32V003's QingKe V2A core (RV32EC: the base integer set with
- * 16 registers, and the 16-bit compressed instructions), plus Zicsr and the M extension for
- * completeness, with a plain-English explanation of each instruction. Instructions are shown the
+ * A RISC-V disassembler for the CH32 QingKe cores (RV32EC or RV32IMAC), plus Zicsr and the M/A
+ * extensions, with a plain-English explanation of each instruction. Instructions are shown the
  * way GNU objdump shows them, with the usual pseudo-instructions (li, mv, ret, call, j, beqz…).
  *
  * Encodings follow The RISC-V Instruction Set Manual, Volume I (base formats, chapter 2; the
@@ -142,6 +141,21 @@ export function disassemble(data: Uint8Array, base: number, start: number, end: 
           case 6: return ["or", `${d}, ${a}, ${b}`, `${d} = ${a} OR ${b}`];
           default: return ["and", `${d}, ${a}, ${b}`, `${d} = ${a} AND ${b}`];
         }
+      }
+      case 0x2f: {
+        const f5 = (w >>> 27) & 31;
+        if (f3 !== 2) return [".word", hex(w), "not an RV32 atomic instruction"];
+        const ordering = `${w & (1 << 26) ? "aq" : ""}${w & (1 << 25) ? "rl" : ""}`;
+        const suffix = ordering ? `.${ordering}` : "";
+        if (f5 === 2) return ["lr.w" + suffix, `${r(rd)}, (${r(rs1)})`, `${r(rd)} = the word at ${r(rs1)}; reserve it for a conditional store`];
+        if (f5 === 3) return ["sc.w" + suffix, `${r(rd)}, ${r(rs2)}, (${r(rs1)})`, `store ${r(rs2)} at ${r(rs1)} if the reservation is still valid; ${r(rd)} = 0 on success`];
+        const atomics: Record<number, [string, string]> = {
+          0: ["add", "add"], 1: ["swap", "replace"], 4: ["xor", "XOR"], 8: ["or", "OR"], 12: ["and", "AND"],
+          16: ["min", "minimum"], 20: ["max", "maximum"], 24: ["minu", "unsigned minimum"], 28: ["maxu", "unsigned maximum"],
+        };
+        const atomic = atomics[f5];
+        if (!atomic) return [".word", hex(w), "unknown atomic operation"];
+        return [`amo${atomic[0]}.w${suffix}`, `${r(rd)}, ${r(rs2)}, (${r(rs1)})`, `atomically ${atomic[1]} the word at ${r(rs1)} with ${r(rs2)}, returning the old word in ${r(rd)}`];
       }
       case 0x0f: return f3 === 1 ? ["fence.i", "", "make the instruction fetch see earlier writes to memory"] : ["fence", "", "finish earlier memory accesses before later ones start"];
       case 0x73: {

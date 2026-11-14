@@ -20,6 +20,7 @@ import { pointeeLength, summarize, type Summary } from "./library-views";
 import type { TypeInfo } from "../dwarf-info";
 import { type Program, codeAt, fileOffsetOf, funcAt, loadProgram, wordAt } from "./program";
 import { morphChildren } from "./morph";
+import { BuiltSources } from "../line-map";
 import type { ChipProfile, Insn } from "./chip";
 import { esp32s3 } from "./chip-esp32s3";
 
@@ -102,8 +103,8 @@ export interface InspectorHost {
   sources(): { file: string; model: monaco.editor.ITextModel }[];
   /** Show this file in the editor. */
   showFile(file: string): void;
-  /** Start addresses of the breakpoints set in the gutter. */
-  breakpoints(table: LineTable): number[];
+  /** Start addresses of the breakpoints set in the gutter (`builtLine`: an editor line → the build's). */
+  breakpoints(table: LineTable, builtLine: (file: string, line: number) => number | undefined): number[];
   log(text: string, level?: "error" | "ok" | "muted"): void;
   /** JTAG connected or gone: the software tracer steps aside while it's connected. */
   connectionChanged?(connected: boolean): void;
@@ -462,6 +463,15 @@ export class JtagInspector {
       this.renderInline();
       this.showExec(false);
     });
+    // Edited code: the build's line numbers point elsewhere now; place everything again (see nowLine).
+    let edited: number | undefined;
+    host.editor.onDidChangeModelContent(() => {
+      clearTimeout(edited);
+      edited = window.setTimeout(() => {
+        this.renderInline();
+        this.showExec(false);
+      }, 150);
+    });
   }
 
   show(): void {
@@ -536,9 +546,36 @@ export class JtagInspector {
   private programAt?: number;
   private asmHover?: { model: monaco.editor.ITextModel; ids: string[] };
 
-  /** The symbols of the build now on the chip, and the build itself (for its machine code). */
-  attach(table: LineTable | undefined, elf?: Uint8Array, app?: { data: Uint8Array; address: number; mapped?: number }): void {
+  /**
+   * The source files as the build on the chip was made from them: its line table's line numbers
+   * are lines of these, not of the code in the editor once that's edited.
+   */
+  private readonly built = new BuiltSources((file) => this.host.sources().find((s) => s.file === file)?.model);
+
+  private nowLine(file: string, line: number): number | undefined {
+    return this.built.nowLine(file, line);
+  }
+
+  private builtLine(file: string, line: number): number | undefined {
+    return this.built.builtLine(file, line);
+  }
+
+  /** Show a line of the build in the editor (nothing when that code is gone). */
+  private revealBuilt(file: string, line: number, cursor = false): void {
+    const now = this.nowLine(file, line);
+    this.host.showFile(file);
+    if (!now) return;
+    this.host.editor.revealLineInCenter(now);
+    if (cursor) this.host.editor.setPosition({ lineNumber: now, column: 1 });
+  }
+
+  /**
+   * The symbols of the build now on the chip, and the build itself (for its machine code).
+   * `sources`: the code it was built from, by compiled path (default: the editor's code now).
+   */
+  attach(table: LineTable | undefined, elf?: Uint8Array, app?: { data: Uint8Array; address: number; mapped?: number }, sources?: Record<string, string>): void {
     this.table = table;
+    this.built.set(sources ? Object.entries(sources) : this.host.sources().map((s) => [s.file, s.model.getValue()]));
     try {
       this.program = elf ? loadProgram(elf, app) : undefined;
     } catch {
@@ -861,7 +898,7 @@ export class JtagInspector {
   }
 
   private hardwareBreakpoints(): number[] {
-    return this.table ? this.host.breakpoints(this.table) : [];
+    return this.table ? this.host.breakpoints(this.table, (file, line) => this.builtLine(file, line)) : [];
   }
 
   /** Called when the gutter breakpoints change: they take effect at the next resume. */
@@ -1673,11 +1710,14 @@ export class JtagInspector {
     if (!this.target || !state?.where) return;
     const loc = state.where;
     const model = this.host.sources().find((s) => s.file === loc.file)?.model;
-    if (!model || loc.line > model.getLineCount()) return;
+    // Lines of the build, placed on the code now (nothing on code changed since).
+    const at = (line: number) => this.nowLine(loc.file, line);
+    const line = at(loc.line);
+    if (!model || !line) return;
     if (reveal) this.host.showFile(loc.file);
     const past = this.lookingBack;
     const decorations: monaco.editor.IModelDeltaDecoration[] = [{
-      range: new monaco.Range(loc.line, 1, loc.line, 1),
+      range: new monaco.Range(line, 1, line, 1),
       options: {
         isWholeLine: true,
         className: past ? "exec-line past" : "exec-line stopped",
@@ -1691,9 +1731,10 @@ export class JtagInspector {
     // The line that just ran (when this stop came from a step): marked ✓.
     const seen = new Set([loc.line]);
     const ran = this.justRan(state);
-    if (ran && ran.file === loc.file && ran.line !== loc.line && ran.line <= model.getLineCount()) {
+    const ranLine = ran && ran.file === loc.file && ran.line !== loc.line ? at(ran.line) : undefined;
+    if (ran && ranLine) {
       decorations.push({
-        range: new monaco.Range(ran.line, 1, ran.line, 1),
+        range: new monaco.Range(ranLine, 1, ranLine, 1),
         options: {
           isWholeLine: true, className: "exec-ran", glyphMarginClassName: "exec-ran-glyph",
           glyphMarginHoverMessage: { value: "Just ran — the step before this stop" }, hoverMessage: { value: "**Just ran** (the step before this stop)" },
@@ -1705,15 +1746,16 @@ export class JtagInspector {
     const end = this.viewIndex ?? this.states.length - 1;
     for (let i = end - 1; i >= 0 && seen.size <= TRAIL; i--) {
       const w = this.states[i].where;
-      if (!w || w.file !== loc.file || seen.has(w.line) || w.line > model.getLineCount()) continue;
+      const wl = w && w.file === loc.file && !seen.has(w.line) ? at(w.line) : undefined;
+      if (!w || !wl) continue;
       decorations.push({
-        range: new monaco.Range(w.line, 1, w.line, 1),
+        range: new monaco.Range(wl, 1, wl, 1),
         options: { isWholeLine: true, className: `exec-trail age-${seen.size}`, hoverMessage: { value: `Ran ${seen.size} stop${seen.size > 1 ? "s" : ""} ago` } },
       });
       seen.add(w.line);
     }
     this.execDecorations = { model, ids: model.deltaDecorations([], decorations) };
-    if (reveal && this.host.editor.getModel() === model) this.host.editor.revealLineInCenterIfOutsideViewport(loc.line, monaco.editor.ScrollType.Smooth);
+    if (reveal && this.host.editor.getModel() === model) this.host.editor.revealLineInCenterIfOutsideViewport(line, monaco.editor.ScrollType.Smooth);
   }
 
   private clearExec(): void {
@@ -1745,7 +1787,9 @@ export class JtagInspector {
   }
 
   /** The watch a name refers to on this line of this file: a local of the enclosing function, else a global. */
-  private watchFor(name: string, file: string, line: number): Watch | undefined {
+  private watchFor(name: string, file: string, lineNow: number): Watch | undefined {
+    // Function spans are in the build's lines.
+    const line = this.builtLine(file, lineNow) ?? 0;
     let global: Watch | undefined;
     for (const w of this.watches) {
       if (w.sym.name !== name) continue;
@@ -2751,8 +2795,9 @@ export class JtagInspector {
       const loc = this.table && locateExact(this.table, i.addr);
       const key = loc ? `${loc.file}:${loc.line}` : "";
       if (loc && key !== lastLine) {
+        const built = this.built.text(loc.file)?.split("\n");
         const model = sources.get(loc.file);
-        const text = model && loc.line <= model.getLineCount() ? model.getLineContent(loc.line).trim() : "";
+        const text = built ? (built[loc.line - 1] ?? "").trim() : model && loc.line <= model.getLineCount() ? model.getLineContent(loc.line).trim() : "";
         const tr = el("tr", "jt-asm-src");
         const td = el("td", "", `${shortFile(loc.file)}:${loc.line}   ${text}`);
         td.colSpan = 5;
@@ -2859,13 +2904,14 @@ export class JtagInspector {
     this.asmHover = undefined;
     if (!file || !line) return;
     const model = this.host.sources().find((s) => s.file === file)?.model;
-    if (!model || line > model.getLineCount()) return;
+    const now = this.nowLine(file, line);
+    if (!model || !now) return;
     if (this.host.editor.getModel() !== model) this.host.showFile(file);
     this.asmHover = {
       model,
-      ids: model.deltaDecorations([], [{ range: new monaco.Range(line, 1, line, 1), options: { isWholeLine: true, className: "jt-asm-source", overviewRuler: { color: "#4fc1ff", position: monaco.editor.OverviewRulerLane.Full } } }]),
+      ids: model.deltaDecorations([], [{ range: new monaco.Range(now, 1, now, 1), options: { isWholeLine: true, className: "jt-asm-source", overviewRuler: { color: "#4fc1ff", position: monaco.editor.OverviewRulerLane.Full } } }]),
     };
-    this.host.editor.revealLineInCenterIfOutsideViewport(line, monaco.editor.ScrollType.Smooth);
+    this.host.editor.revealLineInCenterIfOutsideViewport(now, monaco.editor.ScrollType.Smooth);
   }
 
   // ---- pins ----
@@ -3000,6 +3046,8 @@ export class JtagInspector {
         } else dirCell.append(row.peripheral);
       }
       if (row.pull) dirCell.append(`, ${row.pull}`);
+      // A narrow column: the whole text (cut off when long) in the tooltip too.
+      if (!row.peripheralLink) dirCell.title = `${dirCell.textContent}\n${row.dirTitle}`;
       const lvl = el("td", row.warn ? "jt-warn" : "", row.warn ?? row.level);
       if (row.dot !== undefined) lvl.prepend(el("span", `jt-dot ${row.dot ? "high" : "low"}`));
       const hist = el("td");
@@ -3032,11 +3080,7 @@ export class JtagInspector {
       if (loc) {
         row.classList.add("jt-link");
         row.title = "Show this line";
-        row.onclick = () => {
-          this.host.showFile(loc.file);
-          this.host.editor.revealLineInCenter(loc.line);
-          this.host.editor.setPosition({ lineNumber: loc.line, column: 1 });
-        };
+        row.onclick = () => this.revealBuilt(loc.file, loc.line, true);
       }
       return row;
     };
@@ -3181,8 +3225,7 @@ export class JtagInspector {
           const i = entry.state ? this.states.indexOf(entry.state) : -1;
           if (i >= 0) return this.viewState(i);
           if (!loc) return;
-          this.host.showFile(loc.file);
-          this.host.editor.revealLineInCenter(loc.line);
+          this.revealBuilt(loc.file, loc.line);
         };
       }
       return row;

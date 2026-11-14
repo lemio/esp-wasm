@@ -1,0 +1,12 @@
+diff --git a/libraries/Wire/src/utility/twi.c b/libraries/Wire/src/utility/twi.c
+index 2948fc4..39e31df 100644
+--- a/libraries/Wire/src/utility/twi.c
++++ b/libraries/Wire/src/utility/twi.c
+@@ -37,6 +37,7 @@
+   Modified 6 june 2023 by Temperslee to support wch's risc-v chips
+   */
+ #include "core_debug.h"
++#include "clock.h" /* esp-wasm: GetTick() (clang, like GCC >= 14, rejects implicit declarations) */
+ #include "utility/twi.h"
+ #include "PinAF_ch32yyxx.h"
+ 

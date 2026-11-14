@@ -16,7 +16,12 @@
       <select id="select-mode" title="Project type">
         <option value="arduino">Arduino</option>
         <option value="idf">ESP-IDF (C)</option>
-        <option value="ch32v003">CH32V003 (ch32fun)</option>
+        <option value="ch32v003">CH32 (ch32fun)</option>
+        <option value="ch32v003-arduino">CH32 (Arduino)</option>
+      </select>
+      <select id="select-ch32-chip" title="Which WCH chip to build for" hidden>
+        <option value="ch32v003">CH32V003</option>
+        <option value="ch32x035">CH32X035 (F8U6, G8U…)</option>
       </select>
       <button id="btn-flash" class="primary" title="Compile, put the chip in download mode, flash and reset">Flash</button>
       <select id="select-ch32-via" title="How Flash reaches the CH32V003" hidden>
@@ -59,6 +64,7 @@
           <section id="editor" class="editor"></section>
           <section id="jtag-panel" aria-label="Hardware inspector" hidden></section>
           <section id="ch32-panel" aria-label="CH32V003 hardware inspector" hidden></section>
+          <section id="ch32x035-panel" aria-label="CH32X035 hardware inspector" hidden></section>
         </section>
       </div>
       <section class="console-pane">

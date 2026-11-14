@@ -3,10 +3,16 @@ import type { LineTable } from "../debug/line-table";
 
 /** The chips the IDE builds for. */
 export type Target = "esp32s3" | "ch32v003";
+/** The WCH chips the CH32 sysroot ("ch32v003" target) builds for. */
+export type Ch32Chip = "ch32v003" | "ch32x035";
 
 export interface BuildOptions {
   /** The chip to build for (default: the ESP32-S3). */
   target?: Target;
+  /** CH32: ch32fun (C, main()) or WCH's Arduino core (sketches, setup()/loop()). Default ch32fun. */
+  framework?: "ch32fun" | "arduino";
+  /** CH32: which chip (default the CH32V003). Both build from the same CH32 sysroot. */
+  chip?: Ch32Chip;
   /** Extra preprocessor definitions, e.g. "ARDUINO_USB_CDC_ON_BOOT=1". */
   defines?: string[];
   /** Line tracing: instrument the user's code so the running line can be shown. */

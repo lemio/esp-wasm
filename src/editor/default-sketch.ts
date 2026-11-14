@@ -56,7 +56,11 @@ export const CH32V003_SOURCE = `// Blink on a CH32V003 with ch32fun (https://git
 // PD6 is the LED on many CH32V003 boards (the WCH CH32V003F4P6-EVT has it on PD0).
 #include "ch32fun.h"
 
+#ifdef CH32X035
+#define LED_PIN PA0 // the CH32X035 has no port D
+#else
 #define LED_PIN PD6
+#endif
 
 int main()
 {
@@ -71,5 +75,28 @@ int main()
 		funDigitalWrite(LED_PIN, FUN_LOW);
 		Delay_Ms(250);
 	}
+}
+`;
+
+export const CH32V003_ARDUINO_SOURCE = `// Blink on a CH32V003 with WCH's Arduino core (https://github.com/openwch/arduino_core_ch32).
+// The WCH CH32V003F4P6-EVT has its LED on PD0 (change LED_PIN for your board, but not to
+// PD5/PD6: they're Serial's TX and RX, e.g. to the board's USB-serial chip).
+#ifdef CH32X035
+#define LED_PIN PA0 // the CH32X035 has no port D
+#else
+#define LED_PIN PD0
+#endif
+
+void setup() {
+  pinMode(LED_PIN, OUTPUT);
+  Serial.begin(115200);
+}
+
+void loop() {
+  digitalWrite(LED_PIN, HIGH);
+  delay(250);
+  digitalWrite(LED_PIN, LOW);
+  delay(250);
+  Serial.println(millis());
 }
 `;

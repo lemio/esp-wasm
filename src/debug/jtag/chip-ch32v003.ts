@@ -117,13 +117,13 @@ const pins: PinModel = {
       }
       const af = cnf >= 2, openDrain = cnf & 1;
       const users = sigs.filter((s) => s.pin === id && s.output);
-      const peripheral = af ? users.map((s) => s.name).join(" or ") || "a peripheral, but none is routed here (by AFIO_PCFR1's remapping, of the peripherals switched on)" : undefined;
+      const peripheral = af ? users.map((s) => s.name).join(" or ") || "none routed here" : undefined;
       const driven = af ? "driven by the peripheral" : openDrain ? (out ? "released (open-drain: high only with a pull-up)" : "pulled low") : `driven ${out ? "high" : "low"}`;
       const level = `${driven}${reads ? `, ${reads}` : ""}`;
       const conflict = !af && !openDrain && out !== undefined && inp !== undefined && out !== inp;
       return {
         id, idLink, dir: af ? "output from" : openDrain ? "output (open-drain)" : "output",
-        dirTitle: `CFGLR MODE${n} = ${mode} (output, ${SPEED[mode]}), CNF${n} = ${cnf}: ${["push-pull: your code drives it high and low (funDigitalWrite sets OUTDR)", "open-drain: your code pulls it low or lets go", "alternate function, push-pull: a peripheral drives it", "alternate function, open-drain: a peripheral pulls it low (I2C)"][cnf]}.`,
+        dirTitle: `CFGLR MODE${n} = ${mode} (output, ${SPEED[mode]}), CNF${n} = ${cnf}: ${["push-pull: your code drives it high and low (funDigitalWrite sets OUTDR)", "open-drain: your code pulls it low or lets go", "alternate function, push-pull: a peripheral drives it", "alternate function, open-drain: a peripheral pulls it low (I2C)"][cnf]}.${af && !users.length ? " None of the peripherals switched on has an output routed to this pin (by AFIO_PCFR1's remapping)." : ""}`,
         peripheral, peripheralLink: users[0] ? { base: users[0].base, filter: "", label: users[0].label } : undefined,
         level, dot: af ? inp : out, warn: conflict ? `${level} — it should read ${out ? "high" : "low"}: shorted, or overloaded?` : undefined,
         changed, off: false, drive: SPEED[mode], note, noteTitle,

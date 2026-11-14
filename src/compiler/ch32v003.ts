@@ -8,11 +8,15 @@
 import { buildLineTable } from "../debug/line-table";
 import { PT_LOAD, parseElf } from "../image/elf";
 import { BuildError, parseDiagnostics } from "./diagnostics";
+import { addPrototypes } from "./prototypes";
 import type { Toolchain } from "./toolchain";
-import type { BuildOptions, BuildResult, Diagnostic, LogLevel, SourceFile } from "./types";
+import type { BuildOptions, BuildResult, Ch32Chip, Diagnostic, LogLevel, SourceFile } from "./types";
 import { runWasi } from "./wasi-runner";
 
 export const CH32V003_FLASH_SIZE = 16 * 1024;
+/** Flash sizes; the CH32X035 (F8U6, G8U, …) has 62K for programs. */
+export const CH32_FLASH_SIZE: Record<Ch32Chip, number> = { ch32v003: CH32V003_FLASH_SIZE, ch32x035: 62 * 1024 };
+const CH32_NAME: Record<Ch32Chip, string> = { ch32v003: "CH32V003", ch32x035: "CH32X035" };
 
 /** ch32fun.c includes the program's funconfig.h; this is the one used when there's none. */
 const DEFAULT_FUNCONFIG = `#ifndef _FUNCONFIG_H
@@ -23,17 +27,18 @@ const DEFAULT_FUNCONFIG = `#ifndef _FUNCONFIG_H
 
 type Log = (text: string, level?: LogLevel) => void;
 
-function readArgs(tc: Toolchain, name: string): string[] {
-  const text = new TextDecoder().decode(tc.vfs.readFile(`sysroot/flags/${name}`) ?? new Uint8Array());
+function readArgs(tc: Toolchain, name: string, dir = "flags"): string[] {
+  const text = new TextDecoder().decode(tc.vfs.readFile(`sysroot/${dir}/${name}`) ?? new Uint8Array());
   return text.split("\n").filter((l) => l.length > 0);
 }
 
 /** The loadable bytes of a linked CH32V003 program, as one image from flash address 0. */
-export function flatImage(elf: Uint8Array): Uint8Array {
+export function flatImage(elf: Uint8Array, chip: Ch32Chip = "ch32v003"): Uint8Array {
+  const size = CH32_FLASH_SIZE[chip];
   // Load addresses (paddr): .data's initial values sit in flash after the code.
-  const segs = parseElf(elf).segments.filter((s) => s.type === PT_LOAD && s.filesz > 0 && s.paddr < CH32V003_FLASH_SIZE);
+  const segs = parseElf(elf).segments.filter((s) => s.type === PT_LOAD && s.filesz > 0 && s.paddr < size);
   const end = Math.max(0, ...segs.map((s) => s.paddr + s.filesz));
-  if (end > CH32V003_FLASH_SIZE) throw new BuildError(`The program is ${end} bytes; the CH32V003 has ${CH32V003_FLASH_SIZE}.`);
+  if (end > size) throw new BuildError(`The program is ${end} bytes; the ${CH32_NAME[chip]} has ${size}.`);
   const image = new Uint8Array(end);
   for (const s of segs) image.set(s.data, s.paddr);
   return image;
@@ -65,30 +70,52 @@ export async function buildCh32v003(
   tc: Toolchain,
   userSources: SourceFile[],
   log: Log,
-  _options: BuildOptions = {},
+  options: BuildOptions = {},
 ): Promise<BuildResult> {
   const start = performance.now();
   const { vfs } = tc;
+  const arduino = options.framework === "arduino";
+  // WCH's Arduino core, precompiled in the sysroot (toolchain/scripts/collect_ch32_arduino.py).
+  const chip = options.chip ?? "ch32v003";
+  const flags = arduino ? `flags-arduino-${chip}` : chip === "ch32v003" ? "flags" : "flags-x035";
+  if (arduino && !vfs.readFile(`sysroot/${flags}/common.txt`)) {
+    throw new BuildError(`This toolchain doesn't have WCH's Arduino core for the ${CH32_NAME[chip]} yet (rebuild it with toolchain/build-ch32v003.sh)`);
+  }
+  if (!vfs.readFile(`sysroot/${flags}/common.txt`)) {
+    throw new BuildError(`This toolchain can't build for the ${CH32_NAME[chip]} yet (rebuild it with toolchain/build-ch32v003.sh)`);
+  }
   vfs.resetDir("src");
   vfs.resetDir("build");
-  const sources = userSources.some((s) => s.path === "funconfig.h")
+  const sources = arduino || userSources.some((s) => s.path === "funconfig.h")
     ? userSources
     : [...userSources, { path: "funconfig.h", content: DEFAULT_FUNCONFIG }];
-  for (const s of sources) vfs.writeFile(`src/${s.path}`, s.content);
+  for (const s of sources) {
+    // WCH's GCC has an interrupt type of its own ("WCH-Interrupt-fast": the hardware saves the
+    // registers); clang would ignore it and end the handler with ret instead of mret.
+    let content = s.content.replace(/interrupt\s*\(\s*"WCH-Interrupt-fast"\s*\)/g, 'interrupt("machine")');
+    // Sketches: Arduino-style prototypes, so functions can be used before they're defined.
+    if (s.path.endsWith(".ino")) content = addPrototypes(content, `/src/${s.path}`);
+    vfs.writeFile(`src/${s.path}`, content);
+  }
 
-  const common = readArgs(tc, "common.txt");
+  const common = readArgs(tc, "common.txt", flags);
   const diagnostics: Diagnostic[] = [];
   const objects: string[] = [];
+  // A source another file #includes (e.g. fsusb.h ends with #include "fsusb.c") is compiled there, not on its own.
+  const included = new Set(sources.flatMap((s) => [...s.content.matchAll(/^\s*#\s*include\s*"([^"]+\.(?:c|cpp|cc|cxx))"/gm)].map((m) => m[1])));
   const units = [
-    ...sources.filter((s) => /\.(c|cpp|cc|cxx|S)$/.test(s.path)).map((s) => `/src/${s.path}`),
-    "/sysroot/ch32fun/ch32fun.c",
+    ...sources.filter((s) => /\.(ino|c|cpp|cc|cxx|S)$/.test(s.path) && !included.has(s.path)).map((s) => `/src/${s.path}`),
+    ...(arduino ? [] : ["/sysroot/ch32fun/ch32fun.c"]),
   ];
-  const isCxx = sources.some((s) => /\.(cpp|cc|cxx)$/.test(s.path));
+  const isCxx = sources.some((s) => /\.(ino|cpp|cc|cxx)$/.test(s.path));
   for (const [i, path] of units.entries()) {
     const ext = path.split(".").pop()!;
-    const cxx = ["cpp", "cc", "cxx"].includes(ext);
+    const cxx = ["ino", "cpp", "cc", "cxx"].includes(ext);
     // ch32fun.c calls the C++ constructors (__libc_init_array) when the program has C++ code.
-    const lang = cxx ? readArgs(tc, "cxx.txt") : readArgs(tc, "c.txt").concat(isCxx && path.endsWith("ch32fun.c") ? ["-DCPLUSPLUS=1"] : []);
+    // A sketch is C++ with Arduino.h included first (as the Arduino IDE does).
+    const lang = cxx
+      ? [...(ext === "ino" ? ["-x", "c++", "-include", "Arduino.h"] : []), ...readArgs(tc, "cxx.txt", flags)]
+      : readArgs(tc, "c.txt", flags).concat(!arduino && isCxx && path.endsWith("ch32fun.c") ? ["-DCPLUSPLUS=1"] : []);
     if (path.startsWith("/src/")) log(`CC ${path.slice(5)}`, "muted");
     const obj = `/build/${i}.o`;
     const res = await runWasi(tc.clang, [
@@ -106,7 +133,7 @@ export async function buildCh32v003(
   }
 
   const elfPath = "/build/app.elf";
-  const linkArgs = readArgs(tc, "link.txt").flatMap((a) => (a === "@OBJECTS@" ? objects : [a.replace("@OUTPUT@", elfPath)]));
+  const linkArgs = readArgs(tc, "link.txt", flags).flatMap((a) => (a === "@OBJECTS@" ? objects : [a.replace("@OUTPUT@", elfPath)]));
   log("LD app.elf", "muted");
   const ld = await runWasi(tc.clang, ["ld.lld", ...linkArgs], vfs);
   if (ld.stderr) log(ld.stderr, ld.exitCode ? "error" : "info");
@@ -114,8 +141,9 @@ export async function buildCh32v003(
 
   const elf = vfs.readFile(elfPath);
   if (!elf) throw new BuildError("Linker produced no output");
-  const app = flatImage(elf);
-  log(`Flash: ${app.length} of ${CH32V003_FLASH_SIZE} bytes (${Math.round((app.length / CH32V003_FLASH_SIZE) * 100)}%)`, "muted");
+  const app = flatImage(elf, chip);
+  const total = CH32_FLASH_SIZE[chip];
+  log(`Flash: ${app.length} of ${total} bytes (${Math.round((app.length / total) * 100)}%, ${CH32_NAME[chip]})`, "muted");
   const lineTable = buildLineTable(parseElf(elf).sections, elf, (f) => f.startsWith("/src/"));
   return {
     parts: [

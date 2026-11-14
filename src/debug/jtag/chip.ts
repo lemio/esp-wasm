@@ -2,7 +2,7 @@
  * What the inspector needs to know about one chip: its CPU (register names, how calls and
  * returns look), its memory map and registers (SocApi), its pins, its machine code
  * (a disassembler) and the words it uses to talk about connecting to it. One profile per
- * chip: chip-esp32s3.ts, chip-ch32v003.ts.
+ * chip: chip-esp32s3.ts, chip-ch32v003.ts, chip-ch32x035.ts.
  */
 import type { Db, SocApi } from "./soc";
 

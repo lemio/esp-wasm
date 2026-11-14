@@ -1,8 +1,9 @@
 /**
- * Flash a CH32V003 through a funprog programmer (ch32fun's programmer core) over
+ * Flash a CH32 through a funprog programmer (ch32fun's programmer core) over
  * WebHID: the ESP32-S3 example funprog › CH32V003_Programmer, or cnlohr's ESP32-S2
- * programmer. It speaks to the chip's single-wire debug interface (SWIO on PD1),
- * so no bootloader is needed on the CH32V003.
+ * programmer. It speaks to the chip's single-wire debug interface (PD1 on the
+ * CH32V003; DIO/DCK on the CH32X035),
+ * so no bootloader is needed on the target.
  *
  * The protocol is minichlink's (minichlink/pgm-esp32s2-ch32xx.c): commands go out
  * in a HID feature report, padded with 0xff; the reply is read back with a
@@ -47,6 +48,7 @@ const REPORT_ID = 0xae;
 const REPORT_LEN = 263;
 const FLASH_BASE = 0x08000000;
 const BLOCK = 64;
+/** Default application limit for the CH32V003. Larger chips pass their own capacity to flash(). */
 export const FUNPROG_MAX_APP = 16 * 1024;
 
 const DMCONTROL = 0x10;
@@ -177,7 +179,7 @@ export class FunprogHid {
   }
 
   /** Find the programmer and the chip, and halt the chip. */
-  async connect(): Promise<void> {
+  async connect(chipName = "CH32V003"): Promise<void> {
     const v = await this.transact([0xfe, 0xfd, 0x00], 5);
     this.log(`${this.name}: funprog firmware ${v[0]}.${String(v[2]).padStart(2, "0")}, capabilities ${hex((v[3] << 8) | v[4], 4)}`);
 
@@ -187,14 +189,14 @@ export class FunprogHid {
     let init = await this.transact([0xfe, 0x03, 0xfe, 0x04, ...le32(20000).slice(0, 2), 0xfe, 0x0e], 1);
     const until = performance.now() + 30000;
     if (init[0] !== 0) {
-      this.log("The CH32V003 doesn't answer. If its program puts it in standby, its debug link is off: power the CH32V003 off and on now (unplug its 3V3 for a moment); trying for 30 s…");
+      this.log(`The ${chipName} doesn't answer. If its program puts it in standby, its debug link is off: power it off and on now (unplug its 3V3 for a moment); trying for 30 s…`);
     }
     while (init[0] !== 0 && performance.now() < until) {
       await sleep(50);
       init = await this.transact([0xfe, 0x0e], 1);
     }
     if (init[0] !== 0) {
-      throw new Error(`No CH32V003 answers on SWIO (code ${(init[0] << 24) >> 24}). Check the wiring (programmer SWIO → PD1, 3V3 and GND), or power the CH32V003 off and on while Flash is trying: a program that puts the chip in standby turns its debug link off.`);
+      throw new Error(`No ${chipName} answers on SWIO (code ${(init[0] << 24) >> 24}). Check the programmer wiring, 3V3 and GND, or power the chip off and on while Flash is trying: a program that puts the chip in standby turns its debug link off.`);
     }
 
     // Halt (minichlink's HALT_MODE_HALT_BUT_NO_RESET).
@@ -226,8 +228,8 @@ export class FunprogHid {
    * returns the word before the one asked for. So: on a bad status or a mismatch, void funprog's
    * state and read again from that word; only a word that keeps reading wrong is rewritten.
    */
-  async flash(image: Uint8Array, progress: (pct: number, stage: string) => void): Promise<void> {
-    if (image.length > FUNPROG_MAX_APP) throw new Error(`The program is ${image.length} bytes; the CH32V003 has 16384 bytes of flash`);
+  async flash(image: Uint8Array, progress: (pct: number, stage: string) => void, maxAppSize = FUNPROG_MAX_APP): Promise<void> {
+    if (image.length > maxAppSize) throw new Error(`The program is ${image.length} bytes; the selected chip allows ${maxAppSize} bytes of flash`);
     const padded = new Uint8Array(Math.ceil(image.length / BLOCK) * BLOCK).fill(0xff);
     padded.set(image);
     const blocks = padded.length / BLOCK;

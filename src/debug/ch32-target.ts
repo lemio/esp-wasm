@@ -1,5 +1,5 @@
 /**
- * The CH32V003 as a DebugTarget for the inspector (jtag/inspector.ts), reached over SWIO through
+ * CH32 devices as a DebugTarget for the inspector (jtag/inspector.ts), reached over SWIO through
  * a funprog programmer (src/flasher/funprog-hid.ts, WebHID), with the chip's RISC-V debug
  * module, the way minichlink's GDB server does it (minichlink/minichgdb.c):
  *
@@ -8,8 +8,8 @@
  *    commands run small programs on the halted CPU that use x8–x13, so the registers are
  *    saved when it stops and written back before it runs again.
  *  - Single steps with DCSR.step.
- *  - The QingKe V2A core has no hardware breakpoints: breakpoints are c.ebreak patched into
- *    flash (with DCSR.ebreakm, ebreak enters debug mode), 64-byte pages rewritten from the image
+ *  - These QingKe cores have no hardware breakpoints: breakpoints are c.ebreak patched into
+ *    flash (with DCSR.ebreakm, ebreak enters debug mode), erase sectors rewritten from the image
  *    that was flashed. They stay in flash while the CPU is paused (so Live values, which pause
  *    it twice a second, don't wear the flash out) and come out for single steps; reads of the
  *    flash show the original code. The image is checked against the flash when connecting:
@@ -18,6 +18,7 @@
  *    funprog's terminal command polls it while the program runs, as minichlink -T does.
  */
 import { FunprogHid } from "../flasher/funprog-hid";
+import type { Ch32Chip } from "../compiler/types";
 import type { DebugTarget, Registers, StopCause } from "./jtag/target";
 
 const DMDATA0 = 0x04;
@@ -49,12 +50,14 @@ const EXCEPTIONS: Record<number, string> = {
   11: "it ran ecall (a system call), which ch32fun doesn't handle",
 };
 const FLASH_BASE = 0x08000000;
-const FLASH_SIZE = 16384;
 const STK_CNT = 0xe000f008;
 const RAM_BASE = 0x20000000;
-const RAM_END = 0x20000800;
-const PAGE = 64;
+const BLOCK = 64;
 const C_EBREAK = [0x02, 0x90];
+const TARGETS: Record<Ch32Chip, { name: string; flashSize: number; ramSize: number; registers: number; sectorSize: number }> = {
+  ch32v003: { name: "CH32V003", flashSize: 16 * 1024, ramSize: 2 * 1024, registers: 16, sectorSize: 64 },
+  ch32x035: { name: "CH32X035", flashSize: 62 * 1024, ramSize: 20 * 1024, registers: 32, sectorSize: 256 },
+};
 /** DCSR: ebreakm/ebreaks/ebreaku and stop the counters and timer while halted (as minichlink sets it). */
 const DCSR_DEBUG = 0xb600;
 const DCSR_STEP = 1 << 2;
@@ -71,8 +74,8 @@ const bytes32 = (v: number) => [v & 0xff, (v >>> 8) & 0xff, (v >>> 16) & 0xff, v
 const hex = (v: number) => `0x${(v >>> 0).toString(16).padStart(8, "0")}`;
 /** An address in the flash, in either of its two places (0 and 0x0800_0000), as an offset into it. */
 /** A breakpoint address in RAM (code copied there, like ch32fun's function-in-RAM example). */
-const inRam = (a: number) => a >= 0x20000000 && a + 2 <= 0x20000800;
-const flashOffset = (a: number) => (a < FLASH_SIZE ? a : a >= FLASH_BASE && a < FLASH_BASE + FLASH_SIZE ? a - FLASH_BASE : -1);
+const inRam = (a: number, end: number) => a >= RAM_BASE && a + 2 <= end;
+const flashOffset = (a: number, size: number) => a < size ? a : a >= FLASH_BASE && a < FLASH_BASE + size ? a - FLASH_BASE : -1;
 
 export interface Ch32Program {
   /** The image as flashed (from the start of flash). */
@@ -90,14 +93,14 @@ export interface Ch32TargetHost {
 }
 
 export class Ch32Target implements DebugTarget {
-  readonly name = "CH32V003 over SWIO (funprog)";
+  readonly name: string;
   readonly coreCount = 1;
   readonly core = 0;
   onLost?: (reason: string) => void;
   onReset?: () => void;
   private prog?: FunprogHid;
   private trace?: (line: string) => void;
-  private regs = { pc: 0, x: new Array<number>(16).fill(0) };
+  private regs: { pc: number; x: number[] };
   private halted = false;
   private cause: StopCause = "unknown";
   /** The saved registers are out of date (single steps only read pc and sp). */
@@ -121,6 +124,8 @@ export class Ch32Target implements DebugTarget {
   /** Why it crashed, when it stopped in ch32fun's handler for faults and unhandled interrupts. */
   private crash?: { mcause: number; mepc: number; mtval: number };
   private inserted: number[] = [];
+  /** Sectors whose rewrite was interrupted, retaining their pre-erase contents for recovery. */
+  private incompleteSectors = new Map<number, Uint8Array>();
   private queue: Promise<unknown> = Promise.resolve();
   private poller?: number;
   private lastPoll = 0;
@@ -128,7 +133,16 @@ export class Ch32Target implements DebugTarget {
   private readonly decoder = new TextDecoder();
   private unwatch?: () => void;
 
-  constructor(private readonly host: Ch32TargetHost) {}
+  private readonly config: (typeof TARGETS)[Ch32Chip];
+
+  constructor(private readonly host: Ch32TargetHost, chip: Ch32Chip = "ch32v003") {
+    this.config = TARGETS[chip];
+    this.name = `${this.config.name} over SWIO (funprog)`;
+    this.regs = { pc: 0, x: new Array<number>(this.config.registers).fill(0) };
+  }
+
+  private inRam = (a: number) => inRam(a, RAM_BASE + this.config.ramSize);
+  private flashOffset = (a: number) => flashOffset(a, this.config.flashSize);
 
   setTrace(trace: ((line: string) => void) | undefined): void {
     this.trace = trace;
@@ -151,7 +165,7 @@ export class Ch32Target implements DebugTarget {
   }
 
   private x(cmds: number[], replyLen: number): Promise<Uint8Array> {
-    if (this.closed || !this.prog) return Promise.reject(new Error("Not connected to the CH32V003"));
+    if (this.closed || !this.prog) return Promise.reject(new Error(`Not connected to the ${this.config.name}`));
     // Anything sent can leave the debug module other than funprog's own commands expect.
     this.voided = false;
     return this.prog.transact(cmds, replyLen);
@@ -184,7 +198,7 @@ export class Ch32Target implements DebugTarget {
           await new Promise((res) => setTimeout(res, 50));
           init = await this.x([0xfe, 0x0e], 1);
         }
-        if (init[0] !== 0) throw new Error(`No CH32V003 answers on SWIO (code ${(init[0] << 24) >> 24}). Check the wiring: programmer SWIO → PD1, 3V3 and GND.`);
+        if (init[0] !== 0) throw new Error(`No ${this.config.name} answers on SWIO (code ${(init[0] << 24) >> 24}). Check the DIO/DCK, 3V3 and GND wiring.`);
         // One terminal poll first: whatever the program printed is shown, and the debug module is
         // in the state the register reads expect (right after a reset they can fail otherwise).
         const term = await this.x([0xfe, 0x0d, 0, 0, 0, 0, 0, 0, 0, 0, ...R(DMSTATUS)], 6);
@@ -310,7 +324,7 @@ export class Ch32Target implements DebugTarget {
     this.asleep ??= now;
     if (!this.toldAsleep && now - this.asleep > 1500) {
       this.toldAsleep = true;
-      this.host.log("SWIO: the CH32V003 doesn't answer (asleep in standby, held in reset, or unpowered?); waiting for it");
+      this.host.log(`SWIO: the ${this.config.name} doesn't answer (asleep in standby, held in reset, or unpowered?); waiting for it`);
     }
     if (now - this.lastInit > 500) {
       this.lastInit = now;
@@ -329,7 +343,7 @@ export class Ch32Target implements DebugTarget {
     const status = le32(r, r.length - 4);
     if (this.asleep !== undefined) {
       // Back: a chip that slept in standby wakes up through a reset.
-      if (this.toldAsleep) this.host.log("SWIO: the CH32V003 answers again");
+      if (this.toldAsleep) this.host.log(`SWIO: the ${this.config.name} answers again`);
       this.asleep = undefined;
       this.toldAsleep = false;
     }
@@ -339,13 +353,13 @@ export class Ch32Target implements DebugTarget {
       // them back (halt, resume), which sets DCSR again.
       await this.x(W(DMCONTROL, 0x10000001), 0);
       this.ramOrig.clear();
-      this.inserted = this.inserted.filter((a) => !inRam(a));
+      this.inserted = this.inserted.filter((a) => !this.inRam(a));
       this.trace?.("the chip was reset");
       setTimeout(() => this.onReset?.(), 0);
     }
     if (status & ALLHALTED) {
       await this.onHalted(undefined, true);
-      const at = flashOffset(this.regs.pc);
+      const at = this.flashOffset(this.regs.pc);
       if (this.rearm !== undefined && at === this.rearm && this.cause === "breakpoint") {
         // main() started after a restart: RAM breakpoints back in, and on it goes (unless the
         // user has a breakpoint right there too).
@@ -378,41 +392,49 @@ export class Ch32Target implements DebugTarget {
     // All in one report: DATA0 first (before the abstract commands use it), then the registers,
     // then funprog's cached state voided (the abstract commands changed what it assumes).
     const cmds = [...(fromRun ? R(DMDATA0) : []), ...W(DMABSTRACTCS, 0x700), ...W(DMABSTRACTAUTO, 0)];
-    for (let i = 1; i < 16; i++) cmds.push(...W(DMCOMMAND, 0x00221000 | i), ...R(DMDATA0));
+    for (let i = 1; i < this.config.registers; i++) cmds.push(...W(DMCOMMAND, 0x00221000 | i), ...R(DMDATA0));
     cmds.push(...W(DMCOMMAND, 0x00220000 | CSR_DPC), ...R(DMDATA0));
     cmds.push(...W(DMCOMMAND, 0x00220000 | CSR_DCSR), ...R(DMDATA0));
     cmds.push(...R(DMABSTRACTCS), 0xfe, 0x05);
     const head = fromRun ? 5 : 0;
-    let r = await this.x(cmds, head + 18 * 5);
+    const replyItems = this.config.registers + 2;
+    let r = await this.x(cmds, head + replyItems * 5);
     if (fromRun) this.data0 = le32(r, 1);
     r = r.subarray(head);
-    if ((le32(r, 17 * 5 + 1) >> 8) & 7) {
-      this.trace?.(`register read failed (abstractcs ${hex(le32(r, 17 * 5 + 1))}); again`);
-      r = (await this.x(cmds.slice(fromRun ? 1 : 0), 18 * 5));
-      if ((le32(r, 17 * 5 + 1) >> 8) & 7) {
+    const abstractcsAt = (replyItems - 1) * 5 + 1;
+    if ((le32(r, abstractcsAt) >> 8) & 7) {
+      this.trace?.(`register read failed (abstractcs ${hex(le32(r, abstractcsAt))}); again`);
+      r = (await this.x(cmds.slice(fromRun ? 1 : 0), replyItems * 5));
+      if ((le32(r, abstractcsAt) >> 8) & 7) {
         // The debug module itself was reset (the chip woke from standby): set the link up again.
         this.trace?.("register read failed again; setting up the debug link again");
         await this.x([0xfe, 0x0e, ...W(DMCONTROL, 0x80000001), 0xfe, 0x05], 1);
-        r = (await this.x(cmds.slice(fromRun ? 1 : 0), 18 * 5));
-        if ((le32(r, 17 * 5 + 1) >> 8) & 7) throw new Error(`Reading the CPU registers failed (abstract command error ${(le32(r, 17 * 5 + 1) >> 8) & 7})`);
+        r = (await this.x(cmds.slice(fromRun ? 1 : 0), replyItems * 5));
+        if ((le32(r, abstractcsAt) >> 8) & 7) throw new Error(`Reading the CPU registers failed (abstract command error ${(le32(r, abstractcsAt) >> 8) & 7})`);
       }
     }
     this.voided = true;
-    for (let i = 0; i < 17; i++) if (r[i * 5] !== 0) throw new Error(`Reading the CPU registers failed (code ${(r[i * 5] << 24) >> 24})`);
+    for (let i = 0; i < replyItems - 1; i++) if (r[i * 5] !== 0) throw new Error(`Reading the CPU registers failed (code ${(r[i * 5] << 24) >> 24})`);
     const x = [0];
-    for (let i = 0; i < 15; i++) x.push(le32(r, i * 5 + 1));
-    this.regs = { pc: le32(r, 15 * 5 + 1), x };
+    for (let i = 0; i < this.config.registers - 1; i++) x.push(le32(r, i * 5 + 1));
+    this.regs = { pc: le32(r, (this.config.registers - 1) * 5 + 1), x };
     this.stale = false;
-    return le32(r, 16 * 5 + 1);
+    return le32(r, this.config.registers * 5 + 1);
   }
 
-  /** Commands that write the saved registers back (when funprog's commands changed them). */
-  private restoreCmds(): number[] {
-    if (!this.dirty) return [];
-    const cmds = [...W(DMABSTRACTCS, 0x700), ...W(DMABSTRACTAUTO, 0)];
-    for (let i = 1; i < 16; i++) cmds.push(...W(DMDATA0, this.regs.x[i]), ...W(DMCOMMAND, 0x00231000 | i));
+  /** Write the saved registers back (when funprog's commands changed them). */
+  private async restoreRegisters(): Promise<void> {
+    if (!this.dirty) return;
+    await this.x([...W(DMABSTRACTCS, 0x700), ...W(DMABSTRACTAUTO, 0)], 0);
+    const perReport = Math.floor((263 - 1) / 10);
+    for (let first = 1; first < this.config.registers; first += perReport) {
+      const cmds: number[] = [];
+      for (let i = first; i < Math.min(this.config.registers, first + perReport); i++) {
+        cmds.push(...W(DMDATA0, this.regs.x[i]), ...W(DMCOMMAND, 0x00231000 | i));
+      }
+      await this.x(cmds, 0);
+    }
     this.dirty = false;
-    return cmds;
   }
 
   /** Commands that set dpc and dcsr, then resume. */
@@ -433,7 +455,7 @@ export class Ch32Target implements DebugTarget {
    * CPU as the program left it, for the next session to read.
    */
   private async settle(): Promise<void> {
-    if (this.dirty && this.halted && !this.closed) await this.x(this.restoreCmds(), 0);
+    if (this.dirty && this.halted && !this.closed) await this.restoreRegisters();
   }
 
   /** Before funprog memory/flash commands: registers saved, and funprog's cached state voided. */
@@ -471,7 +493,7 @@ export class Ch32Target implements DebugTarget {
     this.data0 = le32(r, 6);
     const ok = le32(r, 1) & ALLHALTED && !((le32(r, 11) >> 8) & 7);
     if (ok) return;
-    if (!(le32(r, 1) & ALLHALTED) && !(await this.waitHalted())) throw new Error("The CH32V003 doesn't stop (is it in a low-power sleep?)");
+    if (!(le32(r, 1) & ALLHALTED) && !(await this.waitHalted())) throw new Error(`The ${this.config.name} doesn't stop (is it in a low-power sleep?)`);
     // It wasn't halted yet when DCSR was written: again, now that it is.
     await this.x(setDcsr, 5);
   }
@@ -486,7 +508,7 @@ export class Ch32Target implements DebugTarget {
     this.cause = cause ?? (why === 1 ? "breakpoint" : why === 4 ? "step" : why === 3 ? "pause" : "unknown");
     this.crash = undefined;
     const handler = this.crashHandler();
-    if (handler !== undefined && flashOffset(this.regs.pc) === handler && (why === 1 || !cause)) {
+    if (handler !== undefined && this.flashOffset(this.regs.pc) === handler && (why === 1 || !cause)) {
       // The breakpoint on ch32fun's fault handler: the program crashed (or an interrupt has no handler).
       const r = await this.x([
         ...W(DMABSTRACTCS, 0x700),
@@ -499,7 +521,7 @@ export class Ch32Target implements DebugTarget {
     }
     // An ebreak that isn't one of ours, in flash where the program has none: left behind by an
     // earlier session. Put the code back (the inspector says so, and Continue then runs on).
-    const pc = this.regs.pc, at = flashOffset(pc);
+    const pc = this.regs.pc, at = this.flashOffset(pc);
     if (why === 1 && this.flashed && at >= 0 && !this.inserted.includes(at) && this.flashed.image[at] !== C_EBREAK[0]) {
       this.inserted.push(at);
       await this.sync(this.inserted.filter((a) => a !== at));
@@ -525,7 +547,8 @@ export class Ch32Target implements DebugTarget {
   }
 
   private async resumeNow(): Promise<void> {
-    await this.x([...this.restoreCmds(), ...this.resumeCmds(this.regs.pc, false)], 0);
+    await this.restoreRegisters();
+    await this.x(this.resumeCmds(this.regs.pc, false), 0);
     this.halted = false;
     this.schedulePoll();
   }
@@ -535,6 +558,7 @@ export class Ch32Target implements DebugTarget {
       if (!this.halted) return;
       this.ramHeld = this.rearm !== undefined; // (a Continue puts RAM breakpoints back, unless main() is still to come)
       const want = this.validBreakpoints();
+      if (this.incompleteSectors.size) await this.sync(want);
       // On a breakpoint: run its instruction first, then let it run with the breakpoint in.
       if (want.includes(this.regs.pc) || this.inserted.includes(this.regs.pc)) await this.stepPast();
       await this.sync(want);
@@ -561,10 +585,11 @@ export class Ch32Target implements DebugTarget {
         await this.haltNow();
         await this.onHalted("pause", false);
       }
+      if (this.incompleteSectors.size) await this.sync(this.validBreakpoints());
       // Reset while halted: it stops again at the reset vector, so DCSR (which the reset clears)
       // is set up before the program runs into a breakpoint.
       await this.x([...W(DMCONTROL, 0x80000001), ...W(DMCONTROL, 0x80000003), ...W(DMCONTROL, 0x80000001)], 0);
-      if (!(await this.waitHalted())) throw new Error("The CH32V003 didn't stop after the reset");
+      if (!(await this.waitHalted())) throw new Error(`The ${this.config.name} didn't stop after the reset`);
       await this.x(W(DMCONTROL, 0x90000001), 0); // our own reset: acknowledged (still halted)
       await this.onHalted("pause", true);
       this.data0 = 0;
@@ -572,10 +597,10 @@ export class Ch32Target implements DebugTarget {
       // The start-up code will copy the RAM code from flash, over any RAM breakpoints: forget them,
       // and put them back when main() starts.
       this.ramOrig.clear();
-      this.inserted = this.inserted.filter((a) => !inRam(a));
+      this.inserted = this.inserted.filter((a) => !this.inRam(a));
       const main = this.flashed?.funcs.find((f) => f.name === "main");
       this.ramHeld = this.wanted.some(inRam);
-      if (this.ramHeld && main && flashOffset(main.addr) >= 0) this.rearm = flashOffset(main.addr);
+      if (this.ramHeld && main && this.flashOffset(main.addr) >= 0) this.rearm = this.flashOffset(main.addr);
       await this.sync(this.validBreakpoints());
       await this.resumeNow();
     });
@@ -623,7 +648,8 @@ export class Ch32Target implements DebugTarget {
         [rd, value] = [d, pc + (insn & 0xfffff000)];
       } else return false;
     }
-    const cmds = [...this.restoreCmds(), ...W(DMABSTRACTCS, 0x700), ...W(DMABSTRACTAUTO, 0)];
+    await this.restoreRegisters();
+    const cmds = [...W(DMABSTRACTCS, 0x700), ...W(DMABSTRACTAUTO, 0)];
     if (rd) cmds.push(...W(DMDATA0, value >>> 0), ...W(DMCOMMAND, 0x00231000 | rd));
     cmds.push(...W(DMDATA0, next >>> 0), ...W(DMCOMMAND, 0x00230000 | CSR_DPC), ...R(DMABSTRACTCS));
     const r = await this.x(cmds, 5);
@@ -640,8 +666,8 @@ export class Ch32Target implements DebugTarget {
 
   /** Execute one instruction (with the real code at pc). */
   private async stepOne(): Promise<void> {
+    await this.restoreRegisters();
     const r = await this.x([
-      ...this.restoreCmds(),
       ...this.resumeCmds(this.regs.pc, true),
       ...R(DMSTATUS),
       ...W(DMCOMMAND, 0x00220000 | CSR_DPC), ...R(DMDATA0),
@@ -657,6 +683,7 @@ export class Ch32Target implements DebugTarget {
   stepInstruction(): Promise<void> {
     return this.run(async () => {
       if (!this.halted) throw new Error("The CPU is running");
+      if (this.incompleteSectors.size) await this.sync(this.validBreakpoints());
       // A step runs only the instruction at pc: breakpoints elsewhere can stay in flash.
       if (this.inserted.includes(this.regs.pc)) await this.stepPast();
       else await this.stepOne();
@@ -671,9 +698,9 @@ export class Ch32Target implements DebugTarget {
    */
   private async stepPast(): Promise<void> {
     const pc = this.regs.pc, img = this.flashed?.image;
-    const at = inRam(pc) ? pc : flashOffset(pc);
+    const at = this.inRam(pc) ? pc : this.flashOffset(pc);
     let bytes: number[];
-    if (inRam(pc)) {
+    if (this.inRam(pc)) {
       const orig = this.ramOrig.get(pc);
       if (!orig) return this.stepOne();
       await this.beforeMemoryOps();
@@ -693,8 +720,8 @@ export class Ch32Target implements DebugTarget {
       return this.stepOne();
     }
     if (this.stale) await this.readAll(false);
+    await this.restoreRegisters();
     const r = await this.x([
-      ...this.restoreCmds(),
       ...W(DMABSTRACTCS, 0x700), ...W(DMABSTRACTAUTO, 0),
       // A 2-byte instruction is followed by c.ebreak in the same word; either way, ebreak after it.
       ...W(DMPROGBUF0, size === 4 ? insn : (insn | (0x9002 << 16)) >>> 0), ...W(DMPROGBUF1, 0x00100073),
@@ -754,11 +781,11 @@ export class Ch32Target implements DebugTarget {
       pc = this.crash.mepc;
       frames.push({ pc: (pc + 2) >>> 0, sp });
     }
-    const inRam = (a: number) => a >= RAM_BASE && a <= RAM_END;
+    const inRam = (a: number) => a >= RAM_BASE && a <= RAM_BASE + this.config.ramSize;
     for (let n = 0; n < max - 1; n++) {
       const fn = p.funcs.find((f) => pc >= f.addr && pc < f.addr + f.size);
       if (!fn) break;
-      const f = this.frameOf(p.image, fn.addr, pc, n === 0);
+      const f = this.frameOf(p, fn.addr, pc, n === 0);
       const cfa = (sp + f.size) >>> 0;
       if (!inRam(cfa)) break;
       frames[frames.length - 1].cfa = cfa;
@@ -770,7 +797,7 @@ export class Ch32Target implements DebugTarget {
         ra = le32(await this.readMemory(sp + f.raAt, 4), 0);
       } else if (n === 0) ra = regs.ar[1];
       else break;
-      if (!ra || ra & 1 || flashOffset(ra) < 0 || ra === pc) break;
+      if (!ra || ra & 1 || this.flashOffset(ra) < 0 || ra === pc) break;
       frames.push({ pc: ra, sp: cfa });
       pc = ra;
       sp = cfa;
@@ -779,7 +806,8 @@ export class Ch32Target implements DebugTarget {
   }
 
   /** A function's frame at `pc`: its size (bytes below the caller's sp) and where ra is saved (from sp). */
-  private frameOf(image: Uint8Array, start: number, pc: number, innermost: boolean): { size: number; raAt?: number } {
+  private frameOf(program: Ch32Program, start: number, pc: number, innermost: boolean): { size: number; raAt?: number } {
+    const image = program.image;
     const h16 = (a: number) => image[a] | (image[a + 1] << 8);
     // At the end of the function (innermost frame only): `addi sp, sp, N` then `ret`, ra already loaded.
     if (innermost && pc + 2 <= image.length) {
@@ -798,13 +826,22 @@ export class Ch32Target implements DebugTarget {
         if ((h & 0xef83) === 0x6101) { // c.addi16sp
           const v = ((h >> 12) & 1) << 9 | ((h >> 6) & 1) << 4 | ((h >> 5) & 1) << 6 | ((h >> 3) & 3) << 7 | ((h >> 2) & 1) << 5;
           const s = (v << 22) >> 22;
-          if (s < 0) size -= s;
+          if (s < 0) {
+            size -= s;
+            if (raAt !== undefined) raAt -= s;
+          }
         } else if ((h & 0xef83) === 0x0101 && ((h >> 7) & 31) === 2) { // c.addi sp, imm
           const s = ((((h >> 12) & 1) << 5 | ((h >> 2) & 31)) << 26) >> 26;
-          if (s < 0) size -= s;
+          if (s < 0) {
+            size -= s;
+            if (raAt !== undefined) raAt -= s;
+          }
         } else if ((h & 0xe003) === 0xc002 && ((h >> 2) & 31) === 1) { // c.swsp ra, off
           raAt = ((h >> 9) & 15) << 2 | ((h >> 7) & 3) << 6;
-        } else if ((h & 0xe003) === 0xa001 || (h & 0xc003) === 0xc001 || (h & 0xe003) === 0x2001 || (h & 0xf07f) === 0x8002 || (h & 0xf07f) === 0x9002) {
+        } else if ((h & 0xc003) === 0xc001) {
+          const off = (((((h >> 12) & 1) << 8) | (((h >> 10) & 3) << 3) | (((h >> 5) & 3) << 6) | (((h >> 3) & 3) << 1) | (((h >> 2) & 1) << 5)) << 23) >> 23;
+          if (a + off <= pc) break;
+        } else if ((h & 0xe003) === 0xa001 || (h & 0xe003) === 0x2001 || (h & 0xf07f) === 0x8002 || (h & 0xf07f) === 0x9002) {
           break; // a jump, branch or call: the prologue is over
         }
         a += 2;
@@ -814,10 +851,24 @@ export class Ch32Target implements DebugTarget {
       const op = w & 0x7f, rd = (w >> 7) & 31, rs1 = (w >> 15) & 31, f3 = (w >> 12) & 7;
       if (op === 0x13 && f3 === 0 && rd === 2 && rs1 === 2) {
         const s = (w | 0) >> 20;
-        if (s < 0) size -= s;
+        if (s < 0) {
+          size -= s;
+          if (raAt !== undefined) raAt -= s;
+        }
       } else if (op === 0x23 && f3 === 2 && rs1 === 2 && ((w >> 20) & 31) === 1) {
         raAt = (((w | 0) >> 25) << 5) | ((w >> 7) & 31);
-      } else if (op === 0x6f || op === 0x67 || op === 0x63) break;
+      } else if (op === 0x6f && rd === 5 && this.config.registers === 32) {
+        const offset = (((((w >>> 31) << 20) | (((w >>> 12) & 0xff) << 12) | (((w >>> 20) & 1) << 11) | (((w >>> 21) & 0x3ff) << 1)) << 11) >> 11);
+        const helper = program.funcs.find((fn) => fn.addr === (a + offset) >>> 0 && /^__riscv_save_(?:[0-9]|1[0-2])$/.test(fn.name));
+        if (!helper) break;
+        const saved = Number(helper.name.slice("__riscv_save_".length));
+        const helperSize = saved < 4 ? 16 : saved < 8 ? 32 : saved < 12 ? 48 : 64;
+        size += helperSize;
+        raAt = helperSize - 4;
+      } else if (op === 0x63) {
+        const offset = (((((w >>> 31) << 12) | (((w >>> 7) & 1) << 11) | (((w >>> 25) & 0x3f) << 5) | (((w >>> 8) & 0xf) << 1)) << 19) >> 19);
+        if (a + offset <= pc) break;
+      } else if (op === 0x6f || op === 0x67) break;
       a += 4;
     }
     return { size, raAt };
@@ -876,7 +927,7 @@ export class Ch32Target implements DebugTarget {
         for (const [a, orig] of this.ramOrig) {
           for (let k = 0; k < 2; k++) if (a + k - addr >= 0 && a + k - addr < data.length) data[a + k - addr] = orig[k];
         }
-        for (const a of this.inserted.filter((x) => !inRam(x))) {
+        for (const a of this.inserted.filter((x) => !this.inRam(x))) {
           const img = this.flashed?.image;
           for (const base of [0, FLASH_BASE]) {
             for (let k = 0; k < 2; k++) {
@@ -896,7 +947,7 @@ export class Ch32Target implements DebugTarget {
   writeMemory(addr: number, data: Uint8Array): Promise<void> {
     return this.run(async () => {
       if (!this.halted) throw new Error("Pause the program to change memory");
-      if (flashOffset(addr) >= 0) throw new Error("The flash can't be changed from here (flash the program again)");
+      if (this.flashOffset(addr) >= 0) throw new Error("The flash can't be changed from here (flash the program again)");
       await this.beforeMemoryOps();
       const start = (addr & ~3) >>> 0;
       const words = Math.ceil((addr + data.length - start) / 4);
@@ -921,14 +972,14 @@ export class Ch32Target implements DebugTarget {
   // ---- breakpoints in flash ----
 
   setBreakpoints(addrs: number[]): void {
-    this.wanted = [...new Set(addrs.map((a) => (flashOffset(a) >= 0 ? flashOffset(a) : inRam(a) ? a >>> 0 : -1)).filter((a) => a >= 0 && !(a & 1)))].sort((a, b) => a - b);
+    this.wanted = [...new Set(addrs.map((a) => (this.flashOffset(a) >= 0 ? this.flashOffset(a) : this.inRam(a) ? a >>> 0 : -1)).filter((a) => a >= 0 && !(a & 1)))].sort((a, b) => a - b);
   }
 
   private validBreakpoints(): number[] {
     const img = this.flashed?.image;
     // In RAM: always (they don't need the image). In flash: only with the image that's in it.
     // RAM ones wait while the start-up code is still to copy the RAM code (after a restart).
-    const list = this.wanted.filter((a) => (inRam(a) ? !this.ramHeld : !!img && a + 2 <= img.length));
+    const list = this.wanted.filter((a) => (this.inRam(a) ? !this.ramHeld : !!img && a + 2 <= img.length));
     if (this.rearm !== undefined && !list.includes(this.rearm)) list.push(this.rearm);
     // Always one on ch32fun's handler for faults and unhandled interrupts: a crash stops right
     // there (and says why), instead of the program spinning in it.
@@ -940,7 +991,7 @@ export class Ch32Target implements DebugTarget {
   /** Where ch32fun's DefaultIRQHandler is (every fault and unhandled interrupt ends up there). */
   private crashHandler(): number | undefined {
     const f = this.flashed?.funcs.find((fn) => fn.name === "DefaultIRQHandler");
-    return f && flashOffset(f.addr) >= 0 ? flashOffset(f.addr) : undefined;
+    return f && this.flashOffset(f.addr) >= 0 ? this.flashOffset(f.addr) : undefined;
   }
 
   /** Why the program crashed, in words, when it did. */
@@ -958,36 +1009,58 @@ export class Ch32Target implements DebugTarget {
   }
 
   /**
-   * Make flash and RAM hold exactly these breakpoints. In flash only the pages that change are
+   * Make flash and RAM hold exactly these breakpoints. In flash only the sectors that change are
    * written; in RAM the ebreak goes straight into the code (and its bytes are kept to put back).
    */
   private async sync(want: number[]): Promise<void> {
     const img = this.flashed?.image;
-    const flashWant = img ? want.filter((a) => !inRam(a)) : [];
-    const flashHave = this.inserted.filter((a) => !inRam(a));
-    const pageOf = (list: number[]) => {
+    const flashWant = img ? want.filter((a) => !this.inRam(a)) : [];
+    const flashHave = this.inserted.filter((a) => !this.inRam(a));
+    const sectorSize = this.config.sectorSize;
+    const sectorOf = (list: number[]) => {
       const m = new Map<number, string>();
-      for (const a of list) m.set(a & ~(PAGE - 1), `${m.get(a & ~(PAGE - 1)) ?? ""},${a}`);
+      for (const a of list) m.set(a & ~(sectorSize - 1), `${m.get(a & ~(sectorSize - 1)) ?? ""},${a}`);
       return m;
     };
-    const before = pageOf(flashHave), after = pageOf(flashWant);
-    const pages = img ? [...new Set([...before.keys(), ...after.keys()])].filter((p) => before.get(p) !== after.get(p)) : [];
-    if (pages.length) {
+    const before = sectorOf(flashHave), after = sectorOf(flashWant);
+    const sectors = img ? [...new Set([...before.keys(), ...after.keys(), ...this.incompleteSectors.keys()])]
+      .filter((p) => before.get(p) !== after.get(p) || this.incompleteSectors.has(p)) : [];
+    if (sectors.length) {
       await this.beforeMemoryOps();
-      for (let i = 0; i < pages.length; i += 3) {
-        const cmds: number[] = [];
-        const n = Math.min(3, pages.length - i);
-        for (const page of pages.slice(i, i + n)) {
-          const data = new Uint8Array(PAGE).fill(0xff);
-          data.set(img!.subarray(page, page + PAGE));
-          for (const a of flashWant) if ((a & ~(PAGE - 1)) === page) data.set(C_EBREAK, a - page);
-          cmds.push(0xfe, 0x0b, ...bytes32(FLASH_BASE + page), ...data);
+      for (const sector of sectors) {
+        let data: Uint8Array | undefined = this.incompleteSectors.get(sector)?.slice();
+        if (!data) {
+          data = await this.readWords(FLASH_BASE + sector, sectorSize / 4);
+          const tail = Math.max(0, Math.min(sectorSize, img!.length - sector));
+          if (tail < sectorSize) {
+            const confirm = await this.readWords(FLASH_BASE + sector, sectorSize / 4);
+            if (data.subarray(tail).some((byte, i) => byte !== confirm[tail + i])) {
+              throw new Error(`Reading preserved flash at ${hex(FLASH_BASE + sector + tail)} was inconsistent; no sector was erased`);
+            }
+          }
+          this.incompleteSectors.set(sector, data.slice());
         }
-        const r = await this.x(cmds, n);
-        const bad = [...r.subarray(0, n)].findIndex((s) => s !== 0);
-        if (bad >= 0) throw new Error(`Writing a breakpoint into flash at ${hex(FLASH_BASE + pages[i + bad])} failed`);
+        data.set(img!.subarray(sector, sector + sectorSize));
+        for (const a of flashWant) if ((a & ~(sectorSize - 1)) === sector) data.set(C_EBREAK, a - sector);
+        for (let block = 0; block < sectorSize / BLOCK; block += 3) {
+          const cmds: number[] = [];
+          const n = Math.min(3, sectorSize / BLOCK - block);
+          for (let j = 0; j < n; j++) {
+            const offset = (block + j) * BLOCK;
+            cmds.push(0xfe, 0x0b, ...bytes32(FLASH_BASE + sector + offset), ...data.subarray(offset, offset + BLOCK));
+          }
+          const r = await this.x(cmds, n);
+          const bad = [...r.subarray(0, n)].findIndex((s) => s !== 0);
+          if (bad >= 0) throw new Error(`Writing a breakpoint into flash at ${hex(FLASH_BASE + sector + (block + bad) * BLOCK)} failed`);
+        }
+        const actual = await this.readWords(FLASH_BASE + sector, sectorSize / 4);
+        const mismatch = data.findIndex((byte, offset) => actual[offset] !== byte);
+        if (mismatch >= 0) throw new Error(`Verifying a breakpoint in flash at ${hex(FLASH_BASE + sector + mismatch)} failed (expected ${hex(data[mismatch])}, read ${hex(actual[mismatch])})`);
+        this.incompleteSectors.delete(sector);
+        this.inserted = [...this.inserted.filter((a) => this.inRam(a) || (a & ~(sectorSize - 1)) !== sector),
+          ...flashWant.filter((a) => (a & ~(sectorSize - 1)) === sector)];
       }
-      this.trace?.(`flash pages rewritten for breakpoints: ${pages.map((p) => hex(p)).join(", ")}`);
+      this.trace?.(`flash sectors rewritten for breakpoints: ${sectors.map((p) => hex(p)).join(", ")}`);
     }
     // RAM: out the ones no longer wanted, in the new ones.
     const ramWant = want.filter(inRam);

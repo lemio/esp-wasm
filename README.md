@@ -21,7 +21,7 @@ Web Serial. No backend: the site is static files. Needs Chrome or Edge (Web Seri
 | **Examples** | 555 examples of the core and libraries for this configuration, searchable by title and code. |
 | **Trace** | Highlights the running line, with a fading trail of recent lines. Pause, step over/into/out, breakpoints. |
 | **Reset / Disconnect** | Restart the chip, or release the serial port for another program. |
-| **CH32V003** | A third mode for the WCH CH32V003 (RISC-V, 16 KB flash) with [ch32fun](https://github.com/cnlohr/ch32fun): compiles in the browser and flashes over the board's USB-serial chip (with WCH's UART bootloader), or downloads `ch32v003.bin`/`.hex`. 66 of ch32fun's examples. See [below](#ch32v003). |
+| **CH32V003** | A third mode for the WCH CH32V003 (RISC-V, 16 KB flash) with [ch32fun](https://github.com/cnlohr/ch32fun) or [WCH's Arduino core](https://github.com/openwch/arduino_core_ch32): compiles in the browser and flashes over the board's USB-serial chip (with WCH's UART bootloader), or downloads `ch32v003.bin`/`.hex`. 66 of ch32fun's examples, plus the Arduino core's Wire/SPI/EEPROM examples. See [below](#ch32v003). |
 
 Build speed: blink ~0.4 s, a NeoPixel sketch ~2 s. A library compiles once, then it's cached.
 
@@ -134,11 +134,46 @@ programs. On Windows the JTAG interface needs the WinUSB driver.
 
 ## CH32V003
 
-Pick **CH32V003 (ch32fun)** in the mode menu, or open one of its examples
+Pick **CH32 (ch32fun)** in the mode menu, or open one of its examples
 (search "CH32V003"). Programs are plain C with `main()`, using
 [ch32fun](https://github.com/cnlohr/ch32fun) (MIT): `ch32fun.h` for the chip's
 registers and helpers (`funPinMode`, `funDigitalWrite`, `Delay_Ms`, …), and an
 optional `funconfig.h` for its settings.
+
+**CH32X035:** pick it in the chip menu next to the project type (both types
+build for it). It's QingKe V4C (`rv32imac`, 62 KB flash, 20 KB RAM): ch32fun's
+`examples_x035` and the Arduino core's USBPD_SINK library are there for it. The
+CH32X035F8U6 (20 pins) uses the core's CH32X035G8U variant (28 pins, same die);
+the pins its package lacks can't be used. **Flash** programs it through the
+funprog programmer below (SWIO, on the X035's DIO/DCK pins); each build also offers
+`ch32x035.bin`/`.hex`. **Inspect** supports stepping, breakpoints, registers,
+variables, stack and memory over the same SWIO connection. Pins shows GPIO modes
+and levels for the Arduino G8U variant; smaller packages expose a subset.
+Alternate-function routing and peripheral-register decoding are not mapped for
+the X035 yet. The UART bootloader route is for the CH32V003.
+
+Or pick **CH32 (Arduino)** for sketches (`setup()`/`loop()`) with
+[WCH's Arduino core](https://github.com/openwch/arduino_core_ch32) (mostly LGPL-2.1, like Arduino's cores; WCH's HAL files BSD),
+for the CH32V003F4 at 48 MHz (its board defaults): `pinMode`, `digitalWrite`,
+`analogRead`, `Serial` (USART1: TX PD5, RX PD6), `millis`, and its Wire, SPI and
+EEPROM libraries. Flashing and the rest work as for ch32fun programs below.
+
+- **Precompiled:** the core, WCH's HAL, the CH32V003F4 variant and the three
+  libraries are compiled once by `toolchain/scripts/collect_ch32_arduino.py`
+  (native esp-clang, same flags) into `/sysroot/arduino/lib/`; the browser
+  compiles only the sketch. The C library and runtime come from WCH's own GCC
+  15.2 (the toolchain WCH's Arduino board index lists; downloaded and
+  checksum-checked by `build-ch32v003.sh`), from its plain `rv32ec/ilp32e`
+  multilib: newlib-nano, libm, libnosys, WCH's libprintf, libstdc++/libsupc++,
+  libgcc. A blink with Serial is about 8 KB.
+- **Clang differences:** `interrupt("WCH-Interrupt-fast")` (WCH's GCC; the
+  hardware saves the registers) becomes `interrupt("machine")`, in the core and
+  in sketches, because clang would ignore it and return from the handler with
+  `ret` instead of `mret` (`-Werror=ignored-attributes` catches any other);
+  `-fgnuc-version=6.3.0` passes the core's GCC version check; `-march=rv32ec`
+  instead of `rv32ecxw` (clang doesn't have WCH's xw instructions; a little more
+  code). One source fix, in `toolchain/patches/arduino_core_ch32.patch`: Wire's
+  `twi.c` calls `GetTick()` without including `clock.h`.
 
 - **Build:** the same `llvm.wasm`, built with the RISC-V target: clang for
   `rv32ec`/`ilp32e`, `ld.lld` with ch32fun's linker script, and ch32fun's
@@ -179,10 +214,12 @@ optional `funconfig.h` for its settings.
   ESP32-S3's `xtensa-ocd.ts`) and `src/debug/jtag/chip-ch32v003.ts` (pins,
   register names, memory map; `soc-ch32v003.ts`, with `soc/ch32v003.json`
   generated from ch32fun's `CH32V003xx.svd` by `toolchain/scripts/gen-soc-ch32v003.py`).
-  The CH32V003's core has no hardware breakpoints, so breakpoints are `c.ebreak`
+  The CH32V003 and CH32X035 have no hardware breakpoints, so breakpoints are `c.ebreak`
   written into flash (as minichlink's GDB server does), from the image last
   flashed from the page: on connecting, the flash is compared with it, and
-  breakpoints are only used when they match. They stay in flash while the
+  breakpoints are only used when they match. Breakpoint changes rewrite whole
+  erase sectors (64 bytes on V003, 256 bytes on X035), preserving adjacent data.
+  They stay in flash while the
   program is paused (Live values pause it often) and reads of the flash show the
   original code; continuing from a breakpoint runs its instruction from the
   debug module's program buffer, so stepping and continuing rewrite no flash

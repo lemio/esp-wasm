@@ -1,7 +1,8 @@
 import "./styles.css";
 import { CompileError, CompilerClient } from "./compiler/client";
+import { CH32_FLASH_SIZE } from "./compiler/ch32v003";
 import type { FlashPart } from "./compiler/types";
-import { ARDUINO_SOURCE, CH32V003_SOURCE, IDF_SOURCE } from "./editor/default-sketch";
+import { ARDUINO_SOURCE, CH32V003_ARDUINO_SOURCE, CH32V003_SOURCE, IDF_SOURCE } from "./editor/default-sketch";
 import {
   type TextModel, createEditor, disposeModel, fileModel, languageFor, setDiagnostics,
 } from "./editor/editor";
@@ -12,6 +13,7 @@ import { Ch32Iap } from "./flasher/ch32-iap";
 import { FunprogHid, webHidSupported } from "./flasher/funprog-hid";
 import { type Ch32Program, Ch32Target } from "./debug/ch32-target";
 import { ch32v003 } from "./debug/jtag/chip-ch32v003";
+import { ch32x035 } from "./debug/jtag/chip-ch32x035";
 import { loadProgram } from "./debug/jtag/program";
 import type { LineTable } from "./debug/line-table";
 import { BUILDS, dbRequest } from "./libraries/db";
@@ -39,10 +41,19 @@ const inputBins = $<HTMLInputElement>("input-bins");
 const selectMode = $<HTMLSelectElement>("select-mode");
 // CH32V003: flash over its UART bootloader, or over SWIO with a funprog programmer (e.g. an ESP32-S3).
 const selectCh32Via = $<HTMLSelectElement>("select-ch32-via");
+// The CH32 chip both CH32 project types build for: the CH32V003 or the CH32X035 (QingKe V4C, 62K/20K).
+const selectCh32Chip = $<HTMLSelectElement>("select-ch32-chip");
+const CH32_CHIP_NAMES = { ch32v003: "CH32V003", ch32x035: "CH32X035" } as const;
+type Ch32ChipId = keyof typeof CH32_CHIP_NAMES;
+let ch32Chip: Ch32ChipId = (() => {
+  try { return localStorage.getItem("esp-wasm:ch32-chip") === "ch32x035" ? "ch32x035" : "ch32v003"; } catch { return "ch32v003"; }
+})();
 /** The CH32V003's inspector (debugging over SWIO through a funprog programmer); made once the editor exists. */
 let ch32Inspector: JtagInspector | undefined;
-/** The program last flashed to the CH32V003 over SWIO: the inspector writes breakpoints into flash from it. */
-let ch32Flashed: Ch32Program | undefined;
+let ch32x035Inspector: JtagInspector | undefined;
+const selectedCh32Inspector = () => ch32Chip === "ch32x035" ? ch32x035Inspector : ch32Inspector;
+/** Programs last flashed over SWIO: each inspector uses its own image to manage breakpoints. */
+const ch32Flashed: Partial<Record<Ch32ChipId, Ch32Program>> = {};
 const btnExamples = $<HTMLButtonElement>("btn-examples");
 const tabsEl = $("tabs");
 const chkTrace = $<HTMLInputElement>("chk-trace");
@@ -59,11 +70,13 @@ const dbgWhere = $("dbg-where");
 // Project types. The first two link against the ESP32-S3 sysroot: an Arduino
 // sketch provides setup()/loop(), an ESP-IDF program provides app_main().
 // ch32v003: a ch32fun program (main()) for the WCH CH32V003, a RISC-V chip.
+// ch32v003-arduino: a sketch for the CH32V003 with WCH's Arduino core (arduino_core_ch32).
 // `store`: where the main file is kept, when it differs from its build path.
 const MODES = {
   arduino: { file: "sketch.ino", language: "cpp", source: ARDUINO_SOURCE, store: "sketch.ino", chip: "ESP32-S3" },
   idf: { file: "main.c", language: "c", source: IDF_SOURCE, store: "main.c", chip: "ESP32-S3" },
   ch32v003: { file: "main.c", language: "c", source: CH32V003_SOURCE, store: "ch32v003/main.c", chip: "CH32V003" },
+  "ch32v003-arduino": { file: "sketch.ino", language: "cpp", source: CH32V003_ARDUINO_SOURCE, store: "ch32v003-arduino/sketch.ino", chip: "CH32V003" },
 } as const;
 type Mode = keyof typeof MODES;
 const isMode = (m: string | null): m is Mode => !!m && m in MODES;
@@ -115,28 +128,33 @@ try {
   extras = saved.map((f) => extraModel(f.path, f.content));
 } catch { /* corrupt entry: start without extra files */ }
 
-// The CH32V003 project's other files (an example's funconfig.h, .c and .h files).
-const CH32_EXTRAS_KEY = "esp-wasm:ch32v003-extras";
-const CH32_PRISTINE_KEY = "esp-wasm:ch32v003-pristine";
-let ch32Extras: ProjectFile[] = [];
-function ch32ExtraModel(path: string, content: string): ProjectFile {
-  const model = fileModel(`ch32v003/${path}`, languageFor(path), () => content);
-  model.onDidChangeContent(saveCh32Extras);
+// The CH32V003 projects (ch32fun, and WCH's Arduino core): their other files (an example's
+// funconfig.h, .c and .h files), kept in localStorage per project type.
+type Ch32Mode = "ch32v003" | "ch32v003-arduino";
+const CH32_MODES: Ch32Mode[] = ["ch32v003", "ch32v003-arduino"];
+const isCh32 = (m: Mode = mode): m is Ch32Mode => m === "ch32v003" || m === "ch32v003-arduino";
+const ch32Key = (m: Ch32Mode, what: "extras" | "pristine") => `esp-wasm:${m}-${what}`;
+const ch32Extras: Record<Ch32Mode, ProjectFile[]> = { ch32v003: [], "ch32v003-arduino": [] };
+function ch32ExtraModel(m: Ch32Mode, path: string, content: string): ProjectFile {
+  const model = fileModel(`${m}/${path}`, languageFor(path), () => content);
+  model.onDidChangeContent(() => saveCh32Extras(m));
   return { path, model };
 }
-function saveCh32Extras() {
-  storage.set(CH32_EXTRAS_KEY, JSON.stringify(ch32Extras.map((f) => ({ path: f.path, content: f.model.getValue() }))));
+function saveCh32Extras(m: Ch32Mode) {
+  storage.set(ch32Key(m, "extras"), JSON.stringify(ch32Extras[m].map((f) => ({ path: f.path, content: f.model.getValue() }))));
 }
-try {
-  const saved = JSON.parse(storage.get(CH32_EXTRAS_KEY) ?? "[]") as { path: string; content: string }[];
-  ch32Extras = saved.map((f) => ch32ExtraModel(f.path, f.content));
-} catch { /* corrupt entry: start without extra files */ }
-const ch32Text = () => [mainFile("ch32v003"), ...ch32Extras].map((f) => f.model.getValue()).join("\0");
+for (const m of CH32_MODES) {
+  try {
+    const saved = JSON.parse(storage.get(ch32Key(m, "extras")) ?? "[]") as { path: string; content: string }[];
+    ch32Extras[m] = saved.map((f) => ch32ExtraModel(m, f.path, f.content));
+  } catch { /* corrupt entry: start without extra files */ }
+}
+const ch32Text = (m: Ch32Mode) => [mainFile(m), ...ch32Extras[m]].map((f) => f.model.getValue()).join("\0");
 
 /** All files of the current project, main file first. */
 const projectFiles = (): ProjectFile[] =>
   mode === "arduino" ? [mainFile("arduino"), ...extras]
-  : mode === "ch32v003" ? [mainFile("ch32v003"), ...ch32Extras]
+  : isCh32(mode) ? [mainFile(mode), ...ch32Extras[mode]]
   : [mainFile("idf")];
 /** The Arduino project's contents, to tell whether it changed since it was opened. */
 const arduinoText = () => [mainFile("arduino"), ...extras].map((f) => f.model.getValue()).join("\0");
@@ -164,52 +182,77 @@ function setMode(m: Mode) {
   storage.set("esp-wasm:mode", m);
   show(projectFiles()[0]);
   // The CH32V003 flashes over its UART bootloader; the ESP32-S3's trace, inspector and reset don't apply.
-  const ch32 = m === "ch32v003";
-  if (targetLabel) targetLabel.textContent = MODES[m].chip;
+  const ch32 = isCh32(m);
+  if (targetLabel) targetLabel.textContent = ch32 ? CH32_CHIP_NAMES[ch32Chip] : MODES[m].chip;
+  selectCh32Chip.hidden = !ch32;
+  selectCh32Chip.value = ch32Chip;
+  // The CH32X035 flashes through the funprog programmer (SWIO, on its DIO/DCK pins); the UART
+  // bootloader route is the CH32V003's, and so is the inspector.
+  const x035 = ch32 && ch32Chip === "ch32x035";
+  const iapOption = selectCh32Via.querySelector<HTMLOptionElement>('option[value="iap"]');
+  if (iapOption) iapOption.disabled = x035;
+  if (x035) selectCh32Via.value = "funprog";
   btnFlash.title = !ch32
     ? "Compile, put the chip in download mode, flash and reset"
     : selectCh32Via.value === "funprog"
       ? "Compile and flash over SWIO with a funprog programmer (e.g. an ESP32-S3 running the funprog example), with WebHID"
       : "Compile and flash over the board's USB-serial port (needs WCH's USART IAP bootloader on the chip)";
   for (const el of [chkTrace.closest("label"), btnReset]) if (el) (el as HTMLElement).hidden = ch32;
-  // Inspect: the ESP32-S3's inspector over USB-JTAG, or the CH32V003's over SWIO (each in its own panel).
+  // Inspect: the ESP32-S3's inspector over USB-JTAG, or either CH32's over SWIO.
   btnJtag.disabled = ch32 ? !webHidSupported() : !isWebUsbSupported();
   btnJtag.title = ch32
-    ? "Hardware inspector: debug the CH32V003 over SWIO through a funprog programmer (variables, pins, memory, stack, stepping)"
+    ? `Hardware inspector: debug the ${CH32_CHIP_NAMES[ch32Chip]} over SWIO through a funprog programmer (variables, memory, stack, stepping)`
     : "Hardware inspector: debug the chip over USB-JTAG (memory, variables, stack, stepping)";
   $("jtag-panel").hidden ||= ch32;
-  $("ch32-panel").hidden ||= !ch32;
+  $("ch32-panel").hidden = !ch32 || x035 || !ch32Inspector?.visible;
+  $("ch32x035-panel").hidden = !ch32 || !x035 || !ch32x035Inspector?.visible;
   selectCh32Via.hidden = !ch32;
-  // While the CH32V003's inspector is connected, Reset restarts its program.
-  if (ch32 && ch32Inspector?.connected) btnReset.hidden = false;
-  if (!ch32 && ch32Inspector?.connected) void ch32Inspector.release();
+  if (ch32 && selectedCh32Inspector()?.connected) btnReset.hidden = false;
+  if (!ch32) {
+    if (ch32Inspector?.connected) void ch32Inspector.release();
+    if (ch32x035Inspector?.connected) void ch32x035Inspector.release();
+  }
 }
-selectCh32Via.value = storage.get("esp-wasm:ch32-via") === "funprog" ? "funprog" : "iap";
+const savedCh32Via = () => (storage.get("esp-wasm:ch32-via") === "funprog" ? "funprog" : "iap");
+selectCh32Via.value = savedCh32Via();
 setMode(mode);
 selectMode.onchange = () => setMode(selectMode.value as Mode);
 selectCh32Via.onchange = () => {
   storage.set("esp-wasm:ch32-via", selectCh32Via.value);
   setMode(mode);
 };
+function setCh32Chip(chip: Ch32ChipId) {
+  const previous = selectedCh32Inspector();
+  if (chip !== ch32Chip && previous?.connected) void previous.release();
+  ch32Chip = chip;
+  storage.set("esp-wasm:ch32-chip", chip);
+  if (chip === "ch32v003") selectCh32Via.value = savedCh32Via();
+  setMode(mode);
+}
+selectCh32Chip.onchange = () => setCh32Chip(selectCh32Chip.value as Ch32ChipId);
 
-/** Replace the CH32V003 project with a ch32fun example (asks first if it was changed). */
+/** Replace a CH32V003 project with an example: ch32fun's, or the Arduino core's (asks first if it was changed). */
 function openCh32Example(ex: Example) {
-  const changed = ch32Text() !== (storage.get(CH32_PRISTINE_KEY) ?? CH32V003_SOURCE);
+  const m: Ch32Mode = ex.kind === "ch32v003-arduino" ? "ch32v003-arduino" : "ch32v003";
+  // ch32fun's examples are per chip; the Arduino core's are for any chip, unless marked.
+  const chip = ex.chip ?? (m === "ch32v003" ? "ch32v003" : ch32Chip);
+  if (chip !== ch32Chip) setCh32Chip(chip);
+  const changed = ch32Text(m) !== (storage.get(ch32Key(m, "pristine")) ?? MODES[m].source);
   if (changed && !confirm(`Replace your CH32V003 program with the example "${ex.title}"? Your changes will be lost.`)) return;
-  for (const f of ch32Extras) disposeModel(`ch32v003/${f.path}`);
+  for (const f of ch32Extras[m]) disposeModel(`${m}/${f.path}`);
   const [main, ...rest] = ex.files;
-  mainFile("ch32v003").model.setValue(main.content);
-  ch32Extras = rest.map((f) => ch32ExtraModel(f.path, f.content));
-  saveCh32Extras();
-  setMode("ch32v003");
-  storage.set(CH32_PRISTINE_KEY, ch32Text());
+  mainFile(m).model.setValue(main.content);
+  ch32Extras[m] = rest.map((f) => ch32ExtraModel(m, f.path, f.content));
+  saveCh32Extras(m);
+  setMode(m);
+  storage.set(ch32Key(m, "pristine"), ch32Text(m));
   out.log(`Opened example ${ex.library} › ${ex.path}${rest.length ? ` (${ex.files.length} files)` : ""}`, "muted");
   setStatus(`Example: ${ex.title}`);
 }
 
 /** Replace the Arduino project with an example (asks first if the current sketch was changed). */
 function openExample(ex: Example) {
-  if (ex.kind === "ch32v003") return openCh32Example(ex);
+  if (ex.kind === "ch32v003" || ex.kind === "ch32v003-arduino") return openCh32Example(ex);
   const changed = arduinoText() !== (storage.get(PRISTINE_KEY) ?? ARDUINO_SOURCE);
   if (changed &&
       !confirm(`Replace your sketch with the example "${ex.title}"? Your changes will be lost.`)) {
@@ -229,7 +272,10 @@ function openExample(ex: Example) {
   setStatus(`Example: ${ex.title}`);
 }
 
-const examples = new ExamplesPanel($("examples-panel"), openExample);
+const examples = new ExamplesPanel($("examples-panel"), openExample, () => {
+  btnExamples.setAttribute("aria-expanded", "false");
+  btnExamples.focus();
+});
 
 /** Show the installed libraries in the examples panel. */
 async function refreshInstalled() {
@@ -269,7 +315,7 @@ const debug = new Debugger(
     dbgWhere.textContent = !d.controllable && d.state !== "off"
       ? `${where ? `▶ ${where} · ` : ""}tracing only (pause/step need an Arduino sketch)`
       : `${stopped ? "⏸ Paused at" : "▶"} ${where}`;
-    if (d.hardware) setStatus(mode === "ch32v003" ? "Inspecting over SWIO" : "Inspecting over JTAG");
+    if (d.hardware) setStatus(isCh32() ? "Inspecting over SWIO" : "Inspecting over JTAG");
     else if (loc) setStatus(`${stopped ? "⏸" : "▶"} ${where}`);
     // Show the file it stopped in.
     if (stopped && loc) {
@@ -288,7 +334,7 @@ const inspector = new JtagInspector(
       const f = projectFiles().find((p) => `/src/${p.path}` === file);
       if (f && editor.getModel() !== f.model) show(f);
     },
-    breakpoints: (table) => debug.breakpointAddresses(table),
+    breakpoints: (table, builtLine) => debug.breakpointAddresses(table, builtLine),
     log: (text, level) => out.log(text, level),
     connectionChanged: (connected) => debug.setHardware(connected),
     // After a reset from JTAG the chip's USB serial side starts over and the open port goes
@@ -301,44 +347,52 @@ const inspector = new JtagInspector(
   },
   () => new XtensaOcd(),
 );
-// The CH32V003's: the same panel, over SWIO through a funprog programmer (WebHID).
-ch32Inspector = new JtagInspector(
-  $("ch32-panel"),
-  {
-    editor,
-    sources: () => projectFiles().map((f) => ({ file: `/src/${f.path}`, model: f.model })),
-    showFile: (file) => {
-      const f = projectFiles().find((p) => `/src/${p.path}` === file);
-      if (f && editor.getModel() !== f.model) show(f);
-    },
-    breakpoints: (table) => debug.breakpointAddresses(table),
-    log: (text, level) => out.log(text, level),
-    connectionChanged: (connected) => {
-      debug.setHardware(connected);
-      setMode(mode); // Reset restarts its program while connected
-    },
+const ch32InspectorHost = {
+  editor,
+  sources: () => projectFiles().map((f) => ({ file: `/src/${f.path}`, model: f.model })),
+  showFile: (file: string) => {
+    const f = projectFiles().find((p) => `/src/${p.path}` === file);
+    if (f && editor.getModel() !== f.model) show(f);
   },
-  () => new Ch32Target({
-    print: (text) => out.serial(text), // ch32fun's printf, over SWIO
-    log: (text) => out.log(text, "muted"),
-    program: () => ch32Flashed,
-  }),
-  ch32v003,
-);
-$("ch32-panel").hidden ||= mode !== "ch32v003";
+  breakpoints: (table: LineTable, builtLine: (file: string, line: number) => number | undefined) => debug.breakpointAddresses(table, builtLine),
+  log: (text: string, level?: "error" | "ok" | "muted") => out.log(text, level),
+  connectionChanged: (connected: boolean) => {
+    debug.setHardware(connected);
+    setMode(mode);
+  },
+};
+const makeCh32Inspector = (panelId: string, chip: Ch32ChipId) =>
+  new JtagInspector(
+    $(panelId),
+    ch32InspectorHost,
+    () => new Ch32Target({
+      print: (text) => out.serial(text),
+      log: (text) => out.log(text, "muted"),
+      program: () => ch32Flashed[chip],
+    }, chip),
+    chip === "ch32x035" ? ch32x035 : ch32v003,
+  );
+ch32Inspector = makeCh32Inspector("ch32-panel", "ch32v003");
+ch32x035Inspector = makeCh32Inspector("ch32x035-panel", "ch32x035");
+setMode(mode);
 debug.onBreakpointsChanged = () => {
   inspector.breakpointsChanged();
   ch32Inspector?.breakpointsChanged();
+  ch32x035Inspector?.breakpointsChanged();
 };
-// Best effort: take the breakpoints out of the CH32V003's flash when the page goes away.
-window.addEventListener("pagehide", () => void ch32Inspector?.release());
+window.addEventListener("pagehide", () => {
+  void ch32Inspector?.release();
+  void ch32x035Inspector?.release();
+});
 // For poking at the inspector from the browser's console while developing.
-if (import.meta.env.DEV) Object.assign(window, { inspector, ch32Inspector, editor, debug, openCh32Example });
-btnJtag.disabled = mode !== "ch32v003" && !isWebUsbSupported();
+if (import.meta.env.DEV) Object.assign(window, { inspector, ch32Inspector, ch32x035Inspector, editor, debug, openCh32Example });
+btnJtag.disabled = isCh32() ? !webHidSupported() : !isWebUsbSupported();
 btnJtag.onclick = () => {
-  if (mode === "ch32v003" && ch32Inspector) {
-    if (ch32Inspector.visible) ch32Inspector.hide();
-    else ch32Inspector.show();
+  if (isCh32() && ch32Inspector) {
+    const selected = selectedCh32Inspector();
+    if (!selected) return;
+    if (selected.visible) selected.hide();
+    else selected.show();
     return;
   }
   if (inspector.visible) inspector.hide();
@@ -419,6 +473,13 @@ if (!isWebSerialSupported()) {
  * suggest libraries that provide it; `retry` repeats the action after one is installed.
  */
 /** A fingerprint of the project's sources (and mode): a saved build is only reused for exactly these. */
+/** The project's code now, by compiled path: what a build is made from (its line numbers are lines of this). */
+function sourceTexts(): [string, string][] {
+  return projectFiles().map((f) => [`/src/${f.path}`, f.model.getValue()]);
+}
+/** The code of the last ESP32-S3 build (for the serial tracer's lines once it's flashed). */
+let builtTexts: [string, string][] = [];
+
 function sourcesKey(): string {
   let h = 0x811c9dc5;
   for (const ch of `${mode}\0${projectFiles().map((f) => `${f.path}\0${f.model.getValue()}`).join("\0")}`) {
@@ -442,27 +503,33 @@ function saveBuild(saved: SavedBuild): void {
 
 /** A CH32V003 build: its debug info, and the image (from the start of flash). */
 interface Ch32Build {
+  chip: Ch32ChipId;
   sources: string;
   lineTable?: LineTable;
   elf?: Uint8Array;
   image: Uint8Array;
+  /** The code it was built from, by compiled path. */
+  texts?: [string, string][];
 }
-let ch32Built: Ch32Build | undefined;
+const ch32Built: Partial<Record<Ch32ChipId, Ch32Build>> = {};
 
-/** The CH32V003 now runs this build: the inspector knows its lines and variables, and writes breakpoints from its image. */
+/** A CH32 now runs this build: its inspector knows the source and image for breakpoints. */
 function ch32Attach(b: Ch32Build): void {
-  ch32Flashed = { image: b.image, funcs: b.elf ? loadProgram(b.elf).funcs : [] };
-  ch32Inspector?.attach(b.lineTable, b.elf, { data: b.image, address: 0x08000000, mapped: 0 });
+  ch32Flashed[b.chip] = { image: b.image, funcs: b.elf ? loadProgram(b.elf).funcs : [] };
+  const targetInspector = b.chip === "ch32x035" ? ch32x035Inspector : ch32Inspector;
+  targetInspector?.attach(b.lineTable, b.elf, { data: b.image, address: 0x08000000, mapped: 0 }, b.texts && Object.fromEntries(b.texts));
 }
 
 /** After a reload: the last build again, if the sources are still the ones it was made from. */
 async function restoreBuild(): Promise<void> {
-  const ch32 = await dbRequest<Ch32Build | undefined>(BUILDS, "readonly", (s) => s.get("last-ch32")).catch(() => undefined);
-  if (ch32 && ch32.sources === sourcesKey()) ch32Attach(ch32);
+  const key = ch32Chip === "ch32x035" ? "last-ch32-x035" : "last-ch32";
+  const savedCh32 = await dbRequest<Omit<Ch32Build, "chip"> & { chip?: Ch32ChipId } | undefined>(BUILDS, "readonly", (s) => s.get(key)).catch(() => undefined);
+  const ch32 = savedCh32 && { ...savedCh32, chip: savedCh32.chip ?? "ch32v003" };
+  if (ch32 && ch32.chip === ch32Chip && ch32.sources === sourcesKey()) ch32Attach(ch32);
   const saved = await dbRequest<SavedBuild | undefined>(BUILDS, "readonly", (s) => s.get("last")).catch(() => undefined);
   if (!saved || saved.sources !== sourcesKey() || !saved.lineTable) return;
   builtLineTable = saved.instrumented ? saved.lineTable : undefined;
-  if (saved.instrumented) debug.attach(saved.lineTable);
+  if (saved.instrumented) debug.attach(saved.lineTable, sourceTexts());
   inspector.attach(saved.lineTable, saved.elf, saved.app);
 }
 
@@ -474,12 +541,13 @@ async function build(retry?: () => void): Promise<FlashPart[] | undefined> {
   // (esp_wasm/hwcdc_serial.cpp in the sysroot provides the native USB object.)
   const defines = mode === "arduino" ? [`ARDUINO_USB_CDC_ON_BOOT=${flasher.usesNativeUsb ? 1 : 0}`] : [];
   try {
-    if (mode === "ch32v003") {
-      // ch32fun program: no Arduino libraries, trace hooks or JTAG inspector (those are ESP32-S3 only).
-      const result = await compiler.build(files.map((f) => ({ path: f.path, content: f.model.getValue() })), { target: "ch32v003" });
+    if (isCh32()) {
+      // CH32V003 (ch32fun, or WCH's Arduino core): no installed libraries or trace hooks (ESP32-S3 only).
+      const built = sourceTexts();
+      const result = await compiler.build(files.map((f) => ({ path: f.path, content: f.model.getValue() })), { target: "ch32v003", framework: mode === "ch32v003-arduino" ? "arduino" : "ch32fun", chip: ch32Chip });
       for (const f of files) setDiagnostics(f.model, result.diagnostics, f.path);
-      ch32Built = { sources: sourcesKey(), lineTable: result.lineTable, elf: result.elf, image: result.parts[0].data };
-      out.log(`Build OK in ${(result.durationMs / 1000).toFixed(1)}s, app.bin ${result.parts[0].data.length} bytes (CH32V003)`, "ok");
+      ch32Built[ch32Chip] = { chip: ch32Chip, sources: sourcesKey(), lineTable: result.lineTable, elf: result.elf, image: result.parts[0].data, texts: built };
+      out.log(`Build OK in ${(result.durationMs / 1000).toFixed(1)}s, app.bin ${result.parts[0].data.length} bytes (${CH32_CHIP_NAMES[ch32Chip]})`, "ok");
       setStatus("Build OK");
       return result.parts;
     }
@@ -489,14 +557,16 @@ async function build(retry?: () => void): Promise<FlashPart[] | undefined> {
     const libraries = await Promise.all((await listLibraries()).map(async (lib) => ({
       id: lib.id, version: lib.version, includeDirs: lib.includeDirs, files: await libraryFiles(lib),
     })));
+    const built = sourceTexts();
     const result = await compiler.build(
       files.map((f) => ({ path: f.path, content: f.model.getValue() })),
       { defines, trace, debugInfo, libraries },
     );
+    builtTexts = built;
     // The serial tracer only for builds that carry its hooks; the inspector for any with debug info.
     builtLineTable = result.instrumented ? result.lineTable : undefined;
     if (import.meta.env.DEV) Object.assign(window, { lastElf: result.elf });
-    inspector.attach(result.lineTable, result.elf, result.parts.find((p) => p.name === "app.bin"));
+    inspector.attach(result.lineTable, result.elf, result.parts.find((p) => p.name === "app.bin"), Object.fromEntries(built));
     saveBuild({ sources: sourcesKey(), lineTable: result.lineTable, elf: result.elf, app: result.parts.find((p) => p.name === "app.bin"), instrumented: result.instrumented });
     for (const f of files) setDiagnostics(f.model, result.diagnostics, f.path);
     const app = result.parts.find((p) => p.name === "app.bin")!;
@@ -584,7 +654,7 @@ async function flash(parts: FlashPart[], lineTable?: LineTable) {
   await flasher.disconnect().catch(() => {});
   if (!flashed || !port) return;
   // The build now on the chip; with a line table, its running line gets highlighted.
-  debug.attach(lineTable);
+  debug.attach(lineTable, builtTexts);
   try {
     // Reading starts before the reset, so the boot log shows up too.
     await monitor.start(port, { reset: true });
@@ -594,14 +664,14 @@ async function flash(parts: FlashPart[], lineTable?: LineTable) {
   if (hadJtag) void inspector.reconnect();
 }
 
-/** Save build outputs as files (CH32V003: there's no in-browser flasher for it). */
-function downloadLinks(parts: FlashPart[]) {
+/** Save CH32 build outputs with a chip-specific filename. */
+function downloadLinks(parts: FlashPart[], chip: Ch32ChipId) {
   const row = document.createElement("div");
   row.append("Download: ");
   for (const p of parts) {
     const a = document.createElement("a");
     a.href = URL.createObjectURL(new Blob([p.data as BlobPart], { type: "application/octet-stream" }));
-    a.download = p.name.replace("app", "ch32v003");
+    a.download = p.name.replace("app", chip);
     a.textContent = a.download;
     a.className = "download-link";
     row.append(a, " ");
@@ -616,7 +686,7 @@ function downloadLinks(parts: FlashPart[]) {
  */
 let ch32Port: SerialPort | undefined;
 async function flashCh32() {
-  if (selectCh32Via.value === "funprog") return flashCh32Funprog();
+  if (ch32Chip === "ch32x035" || selectCh32Via.value === "funprog") return flashCh32Funprog();
   try {
     const known = await navigator.serial.getPorts();
     if (!ch32Port || !known.includes(ch32Port)) {
@@ -629,7 +699,7 @@ async function flashCh32() {
   }
   const parts = await build(() => btnFlash.click());
   if (!parts) return;
-  downloadLinks(parts);
+  downloadLinks(parts, ch32Chip);
   await monitor.stop(); // it holds the port
   const iap = new Ch32Iap(ch32Port, (t) => out.log(t, "ok"));
   try {
@@ -643,7 +713,8 @@ async function flashCh32() {
     }
     await iap.flash(parts[0].data, (pct, stage) => setStatus(`${stage}: ${pct}%`));
     setStatus("Flashed: running");
-    if (ch32Built) ch32NowRuns(ch32Built);
+    const built = ch32Built[ch32Chip];
+    if (built) ch32NowRuns(built);
   } catch (e) {
     out.log(`Flash failed: ${(e as Error).message}`, "error");
     setStatus("Flash failed");
@@ -656,7 +727,7 @@ async function flashCh32() {
 }
 
 /**
- * CH32V003 over SWIO, through a funprog programmer (ch32fun's programmer firmware,
+ * CH32 over SWIO, through a funprog programmer (ch32fun's programmer firmware,
  * e.g. the ESP32-S3 example funprog › CH32V003_Programmer) with WebHID: what
  * minichlink -w does. Needs no bootloader on the chip.
  */
@@ -673,14 +744,14 @@ async function flashCh32Funprog() {
   }
   const parts = await build(() => btnFlash.click());
   if (!parts) return;
-  downloadLinks(parts);
-  // The inspector holds the programmer, and its breakpoints are in the old program's flash.
-  await ch32Inspector?.release();
+  downloadLinks(parts, ch32Chip);
+  // The active inspector holds the programmer, and its breakpoints are in the old program's flash.
+  await selectedCh32Inspector()?.release();
   try {
     await prog.open();
-    setStatus("Connecting to the CH32V003…");
-    await prog.connect();
-    await prog.flash(parts[0].data, (pct, stage) => setStatus(`${stage}: ${pct}%`));
+    setStatus(`Connecting to the ${CH32_CHIP_NAMES[ch32Chip]}…`);
+    await prog.connect(CH32_CHIP_NAMES[ch32Chip]);
+    await prog.flash(parts[0].data, (pct, stage) => setStatus(`${stage}: ${pct}%`), CH32_FLASH_SIZE[ch32Chip]);
     await prog.run();
     out.log(`Flashed ${parts[0].data.length} bytes over SWIO and started the program.`, "ok");
     setStatus("Flashed: running");
@@ -691,21 +762,23 @@ async function flashCh32Funprog() {
   } finally {
     await prog.close();
   }
-  if (ch32Built) ch32NowRuns(ch32Built);
+  const built = ch32Built[ch32Chip];
+  if (built) ch32NowRuns(built);
   // Connected right away: the program's printf comes over SWIO, and it can be paused and stepped.
-  void ch32Inspector?.reconnect();
+  void selectedCh32Inspector()?.reconnect();
 }
 
-/** A CH32V003 build was flashed: the inspector follows it (kept for a page reload too). */
+/** A CH32 build was flashed: its inspector follows it (kept for a page reload too). */
 function ch32NowRuns(b: Ch32Build): void {
   ch32Attach(b);
-  void dbRequest(BUILDS, "readwrite", (st) => st.put(b, "last-ch32")).catch(() => { /* best effort */ });
+  const key = b.chip === "ch32x035" ? "last-ch32-x035" : "last-ch32";
+  void dbRequest(BUILDS, "readwrite", (st) => st.put(b, key)).catch(() => { /* best effort */ });
 }
 
 // One click: compile → download mode → flash → reset.
 btnFlash.onclick = () =>
   exclusive(async () => {
-    if (mode === "ch32v003") return flashCh32();
+    if (isCh32()) return flashCh32();
     try {
       // Pick the port first: Chrome only shows the picker during the click, and
       // the first build may spend a while downloading the toolchain.
@@ -770,8 +843,9 @@ btnDisconnect.onclick = () =>
   });
 
 btnReset.onclick = () => {
-  if (mode === "ch32v003" && ch32Inspector?.connected) {
-    void ch32Inspector.restartProgram().then(() => out.log("CH32V003 restarted.", "muted"), (e) => out.log(`Restart failed: ${(e as Error).message}`, "error"));
+  const selected = selectedCh32Inspector();
+  if (isCh32() && selected?.connected) {
+    void selected.restartProgram().then(() => out.log(`${CH32_CHIP_NAMES[ch32Chip]} restarted.`, "muted"), (e) => out.log(`Restart failed: ${(e as Error).message}`, "error"));
     return;
   }
   signalCommand("Reset", () => (monitor.running ? monitor.reset() : flasher.reset()), "Chip reset, app running");

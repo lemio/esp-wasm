@@ -12,8 +12,10 @@ export interface ExampleFile {
 export interface Example {
   id: string;
   library: string;
-  /** ch32v003: a ch32fun program for the CH32V003 (opens in that mode). */
-  kind: "core" | "library" | "ch32v003";
+  /** ch32v003: a ch32fun program for the CH32V003; ch32v003-arduino: a sketch for WCH's Arduino core (each opens in its mode). */
+  kind: "core" | "library" | "ch32v003" | "ch32v003-arduino";
+  /** CH32 examples for a chip other than the CH32V003 (ch32fun's are per chip; the Arduino core's mostly aren't). */
+  chip?: "ch32v003" | "ch32x035";
   title: string;
   path: string;
   files: ExampleFile[];
@@ -51,11 +53,16 @@ export class ExamplesPanel {
   constructor(
     private readonly root: HTMLElement,
     private readonly onOpen: (ex: Example) => void,
+    /** The panel's own close button was used. */
+    private readonly onClose?: () => void,
   ) {
     root.innerHTML = `
       <div class="examples-head">
-        <input type="search" class="examples-search" placeholder="Search examples and code…"
-               aria-label="Search examples" spellcheck="false" />
+        <div class="examples-row">
+          <input type="search" class="examples-search" placeholder="Search examples and code…"
+                 aria-label="Search examples" spellcheck="false" />
+          <button type="button" class="small examples-close" title="Close the examples (Esc)" aria-label="Close the examples">✕</button>
+        </div>
         <span class="examples-count" aria-live="polite"></span>
       </div>
       <div class="installed-libs" hidden></div>
@@ -70,6 +77,14 @@ export class ExamplesPanel {
     });
     this.search.addEventListener("keydown", (e) => {
       if (e.key === "Enter") (this.list.querySelector(".example") as HTMLElement | null)?.click();
+    });
+    const close = () => {
+      void this.toggle(false);
+      this.onClose?.();
+    };
+    root.querySelector<HTMLButtonElement>(".examples-close")!.onclick = close;
+    root.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") close();
     });
   }
 
@@ -221,7 +236,7 @@ export class ExamplesPanel {
 }
 
 function groupName(ex: Example): string {
-  return ex.kind === "core" ? `Arduino core › ${ex.library}` : ex.kind === "ch32v003" ? `CH32V003 › ${ex.library}` : ex.library;
+  return ex.kind === "core" ? `Arduino core › ${ex.library}` : ex.kind === "ch32v003" || ex.kind === "ch32v003-arduino" ? `${ex.chip === "ch32x035" ? "CH32X035" : ex.kind === "ch32v003" ? "CH32V003" : "CH32"} › ${ex.library}` : ex.library;
 }
 
 function badge(text: string, cls: string, title?: string): HTMLElement {
