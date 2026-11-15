@@ -49,6 +49,7 @@ events:
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin/"
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin/"
       - "/Library/Apple/usr/bin/"
+      - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts/"
       - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand/"
       - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim/"
       - "/Users/geertroumen/.lmstudio/bin/"
@@ -95,6 +96,7 @@ events:
         - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin"
         - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin"
         - "/Library/Apple/usr/bin"
+        - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts"
         - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand"
         - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim"
         - "/Users/geertroumen/.lmstudio/bin"
@@ -144,6 +146,7 @@ events:
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin/"
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin/"
       - "/Library/Apple/usr/bin/"
+      - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts/"
       - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand/"
       - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim/"
       - "/Users/geertroumen/.lmstudio/bin/"
@@ -195,6 +198,7 @@ events:
         - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin"
         - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin"
         - "/Library/Apple/usr/bin"
+        - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts"
         - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand"
         - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim"
         - "/Users/geertroumen/.lmstudio/bin"
@@ -255,6 +259,7 @@ events:
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin/"
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin/"
       - "/Library/Apple/usr/bin/"
+      - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts/"
       - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand/"
       - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim/"
       - "/Users/geertroumen/.lmstudio/bin/"
@@ -328,6 +333,7 @@ events:
         - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin"
         - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin"
         - "/Library/Apple/usr/bin"
+        - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts"
         - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand"
         - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim"
         - "/Users/geertroumen/.lmstudio/bin"
@@ -378,6 +384,7 @@ events:
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin/"
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin/"
       - "/Library/Apple/usr/bin/"
+      - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts/"
       - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand/"
       - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim/"
       - "/Users/geertroumen/.lmstudio/bin/"
@@ -416,6 +423,7 @@ events:
         - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin"
         - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin"
         - "/Library/Apple/usr/bin"
+        - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts"
         - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand"
         - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim"
         - "/Users/geertroumen/.lmstudio/bin"
@@ -475,6 +483,7 @@ events:
         - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin"
         - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin"
         - "/Library/Apple/usr/bin"
+        - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts"
         - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand"
         - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim"
         - "/Users/geertroumen/.lmstudio/bin"
@@ -555,6 +564,7 @@ events:
         - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin"
         - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin"
         - "/Library/Apple/usr/bin"
+        - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts"
         - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand"
         - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim"
         - "/Users/geertroumen/.lmstudio/bin"
@@ -629,6 +639,7 @@ events:
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin/"
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin/"
       - "/Library/Apple/usr/bin/"
+      - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts/"
       - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand/"
       - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim/"
       - "/Users/geertroumen/.lmstudio/bin/"
@@ -661,6 +672,7 @@ events:
         - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin"
         - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin"
         - "/Library/Apple/usr/bin"
+        - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts"
         - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand"
         - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim"
         - "/Users/geertroumen/.lmstudio/bin"
@@ -712,6 +724,7 @@ events:
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin/"
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin/"
       - "/Library/Apple/usr/bin/"
+      - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts/"
       - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand/"
       - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim/"
       - "/Users/geertroumen/.lmstudio/bin/"
@@ -744,6 +757,7 @@ events:
         - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin"
         - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin"
         - "/Library/Apple/usr/bin"
+        - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts"
         - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand"
         - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim"
         - "/Users/geertroumen/.lmstudio/bin"
@@ -795,6 +809,7 @@ events:
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin/"
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin/"
       - "/Library/Apple/usr/bin/"
+      - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts/"
       - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand/"
       - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim/"
       - "/Users/geertroumen/.lmstudio/bin/"
@@ -827,6 +842,7 @@ events:
         - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin"
         - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin"
         - "/Library/Apple/usr/bin"
+        - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts"
         - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand"
         - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim"
         - "/Users/geertroumen/.lmstudio/bin"
@@ -878,6 +894,7 @@ events:
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin/"
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin/"
       - "/Library/Apple/usr/bin/"
+      - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts/"
       - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand/"
       - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim/"
       - "/Users/geertroumen/.lmstudio/bin/"
@@ -910,6 +927,7 @@ events:
         - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin"
         - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin"
         - "/Library/Apple/usr/bin"
+        - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts"
         - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand"
         - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim"
         - "/Users/geertroumen/.lmstudio/bin"
@@ -961,6 +979,7 @@ events:
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin/"
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin/"
       - "/Library/Apple/usr/bin/"
+      - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts/"
       - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand/"
       - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim/"
       - "/Users/geertroumen/.lmstudio/bin/"
@@ -993,6 +1012,7 @@ events:
         - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin"
         - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin"
         - "/Library/Apple/usr/bin"
+        - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts"
         - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand"
         - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim"
         - "/Users/geertroumen/.lmstudio/bin"
@@ -1044,6 +1064,7 @@ events:
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin/"
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin/"
       - "/Library/Apple/usr/bin/"
+      - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts/"
       - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand/"
       - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim/"
       - "/Users/geertroumen/.lmstudio/bin/"
@@ -1074,6 +1095,7 @@ events:
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin/llvm-dlltool"
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin/llvm-dlltool"
       - "/Library/Apple/usr/bin/llvm-dlltool"
+      - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts/llvm-dlltool"
       - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand/llvm-dlltool"
       - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim/llvm-dlltool"
       - "/Users/geertroumen/.lmstudio/bin/llvm-dlltool"
@@ -1103,6 +1125,7 @@ events:
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin/dlltool"
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin/dlltool"
       - "/Library/Apple/usr/bin/dlltool"
+      - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts/dlltool"
       - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand/dlltool"
       - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim/dlltool"
       - "/Users/geertroumen/.lmstudio/bin/dlltool"
@@ -1135,6 +1158,7 @@ events:
         - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin"
         - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin"
         - "/Library/Apple/usr/bin"
+        - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts"
         - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand"
         - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim"
         - "/Users/geertroumen/.lmstudio/bin"
@@ -1186,6 +1210,7 @@ events:
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin/"
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin/"
       - "/Library/Apple/usr/bin/"
+      - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts/"
       - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand/"
       - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim/"
       - "/Users/geertroumen/.lmstudio/bin/"
@@ -1216,6 +1241,7 @@ events:
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin/llvm-addr2line"
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin/llvm-addr2line"
       - "/Library/Apple/usr/bin/llvm-addr2line"
+      - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts/llvm-addr2line"
       - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand/llvm-addr2line"
       - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim/llvm-addr2line"
       - "/Users/geertroumen/.lmstudio/bin/llvm-addr2line"
@@ -1245,6 +1271,7 @@ events:
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin/addr2line"
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin/addr2line"
       - "/Library/Apple/usr/bin/addr2line"
+      - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts/addr2line"
       - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand/addr2line"
       - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim/addr2line"
       - "/Users/geertroumen/.lmstudio/bin/addr2line"
@@ -1277,6 +1304,7 @@ events:
         - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin"
         - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin"
         - "/Library/Apple/usr/bin"
+        - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts"
         - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand"
         - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim"
         - "/Users/geertroumen/.lmstudio/bin"
@@ -1327,6 +1355,7 @@ events:
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin/"
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin/"
       - "/Library/Apple/usr/bin/"
+      - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts/"
       - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand/"
       - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim/"
       - "/Users/geertroumen/.lmstudio/bin/"
@@ -1357,6 +1386,7 @@ events:
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin/tapi"
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin/tapi"
       - "/Library/Apple/usr/bin/tapi"
+      - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts/tapi"
       - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand/tapi"
       - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim/tapi"
       - "/Users/geertroumen/.lmstudio/bin/tapi"
@@ -1389,6 +1419,7 @@ events:
         - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin"
         - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin"
         - "/Library/Apple/usr/bin"
+        - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts"
         - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand"
         - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim"
         - "/Users/geertroumen/.lmstudio/bin"
@@ -1442,6 +1473,7 @@ events:
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin/"
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin/"
       - "/Library/Apple/usr/bin/"
+      - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts/"
       - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand/"
       - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim/"
       - "/Users/geertroumen/.lmstudio/bin/"
@@ -1472,6 +1504,7 @@ events:
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin/llvm-ar-20.1"
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin/llvm-ar-20.1"
       - "/Library/Apple/usr/bin/llvm-ar-20.1"
+      - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts/llvm-ar-20.1"
       - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand/llvm-ar-20.1"
       - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim/llvm-ar-20.1"
       - "/Users/geertroumen/.lmstudio/bin/llvm-ar-20.1"
@@ -1501,6 +1534,7 @@ events:
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin/llvm-ar-20"
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin/llvm-ar-20"
       - "/Library/Apple/usr/bin/llvm-ar-20"
+      - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts/llvm-ar-20"
       - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand/llvm-ar-20"
       - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim/llvm-ar-20"
       - "/Users/geertroumen/.lmstudio/bin/llvm-ar-20"
@@ -1530,6 +1564,7 @@ events:
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin/llvm-ar20"
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin/llvm-ar20"
       - "/Library/Apple/usr/bin/llvm-ar20"
+      - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts/llvm-ar20"
       - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand/llvm-ar20"
       - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim/llvm-ar20"
       - "/Users/geertroumen/.lmstudio/bin/llvm-ar20"
@@ -1562,6 +1597,7 @@ events:
         - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin"
         - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin"
         - "/Library/Apple/usr/bin"
+        - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts"
         - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand"
         - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim"
         - "/Users/geertroumen/.lmstudio/bin"
@@ -1615,6 +1651,7 @@ events:
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin/"
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin/"
       - "/Library/Apple/usr/bin/"
+      - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts/"
       - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand/"
       - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim/"
       - "/Users/geertroumen/.lmstudio/bin/"
@@ -1645,6 +1682,7 @@ events:
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin/llvm-ranlib-20.1"
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin/llvm-ranlib-20.1"
       - "/Library/Apple/usr/bin/llvm-ranlib-20.1"
+      - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts/llvm-ranlib-20.1"
       - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand/llvm-ranlib-20.1"
       - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim/llvm-ranlib-20.1"
       - "/Users/geertroumen/.lmstudio/bin/llvm-ranlib-20.1"
@@ -1674,6 +1712,7 @@ events:
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin/llvm-ranlib-20"
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin/llvm-ranlib-20"
       - "/Library/Apple/usr/bin/llvm-ranlib-20"
+      - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts/llvm-ranlib-20"
       - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand/llvm-ranlib-20"
       - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim/llvm-ranlib-20"
       - "/Users/geertroumen/.lmstudio/bin/llvm-ranlib-20"
@@ -1703,6 +1742,7 @@ events:
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin/llvm-ranlib20"
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin/llvm-ranlib20"
       - "/Library/Apple/usr/bin/llvm-ranlib20"
+      - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts/llvm-ranlib20"
       - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand/llvm-ranlib20"
       - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim/llvm-ranlib20"
       - "/Users/geertroumen/.lmstudio/bin/llvm-ranlib20"
@@ -1735,6 +1775,7 @@ events:
         - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin"
         - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin"
         - "/Library/Apple/usr/bin"
+        - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts"
         - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand"
         - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim"
         - "/Users/geertroumen/.lmstudio/bin"
@@ -1788,6 +1829,7 @@ events:
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin/"
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin/"
       - "/Library/Apple/usr/bin/"
+      - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts/"
       - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand/"
       - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim/"
       - "/Users/geertroumen/.lmstudio/bin/"
@@ -1818,6 +1860,7 @@ events:
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin/clang-scan-deps-20.1"
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin/clang-scan-deps-20.1"
       - "/Library/Apple/usr/bin/clang-scan-deps-20.1"
+      - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts/clang-scan-deps-20.1"
       - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand/clang-scan-deps-20.1"
       - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim/clang-scan-deps-20.1"
       - "/Users/geertroumen/.lmstudio/bin/clang-scan-deps-20.1"
@@ -1847,6 +1890,7 @@ events:
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin/clang-scan-deps-20"
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin/clang-scan-deps-20"
       - "/Library/Apple/usr/bin/clang-scan-deps-20"
+      - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts/clang-scan-deps-20"
       - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand/clang-scan-deps-20"
       - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim/clang-scan-deps-20"
       - "/Users/geertroumen/.lmstudio/bin/clang-scan-deps-20"
@@ -1876,6 +1920,7 @@ events:
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin/clang-scan-deps20"
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin/clang-scan-deps20"
       - "/Library/Apple/usr/bin/clang-scan-deps20"
+      - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts/clang-scan-deps20"
       - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand/clang-scan-deps20"
       - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim/clang-scan-deps20"
       - "/Users/geertroumen/.lmstudio/bin/clang-scan-deps20"
@@ -1905,6 +1950,7 @@ events:
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin/clang-scan-deps"
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin/clang-scan-deps"
       - "/Library/Apple/usr/bin/clang-scan-deps"
+      - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts/clang-scan-deps"
       - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand/clang-scan-deps"
       - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim/clang-scan-deps"
       - "/Users/geertroumen/.lmstudio/bin/clang-scan-deps"
@@ -1937,6 +1983,7 @@ events:
         - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin"
         - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin"
         - "/Library/Apple/usr/bin"
+        - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts"
         - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand"
         - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim"
         - "/Users/geertroumen/.lmstudio/bin"
@@ -1987,6 +2034,7 @@ events:
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin/"
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin/"
       - "/Library/Apple/usr/bin/"
+      - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts/"
       - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand/"
       - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim/"
       - "/Users/geertroumen/.lmstudio/bin/"
@@ -2025,6 +2073,7 @@ events:
         - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin"
         - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin"
         - "/Library/Apple/usr/bin"
+        - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts"
         - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand"
         - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim"
         - "/Users/geertroumen/.lmstudio/bin"
@@ -2084,6 +2133,7 @@ events:
         - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin"
         - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin"
         - "/Library/Apple/usr/bin"
+        - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts"
         - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand"
         - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim"
         - "/Users/geertroumen/.lmstudio/bin"
@@ -2164,6 +2214,7 @@ events:
         - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin"
         - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin"
         - "/Library/Apple/usr/bin"
+        - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts"
         - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand"
         - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim"
         - "/Users/geertroumen/.lmstudio/bin"
@@ -2240,6 +2291,7 @@ events:
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin/"
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin/"
       - "/Library/Apple/usr/bin/"
+      - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts/"
       - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand/"
       - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim/"
       - "/Users/geertroumen/.lmstudio/bin/"
@@ -2270,6 +2322,7 @@ events:
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin/llvm-ar-20.1"
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin/llvm-ar-20.1"
       - "/Library/Apple/usr/bin/llvm-ar-20.1"
+      - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts/llvm-ar-20.1"
       - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand/llvm-ar-20.1"
       - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim/llvm-ar-20.1"
       - "/Users/geertroumen/.lmstudio/bin/llvm-ar-20.1"
@@ -2299,6 +2352,7 @@ events:
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin/llvm-ar-20"
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin/llvm-ar-20"
       - "/Library/Apple/usr/bin/llvm-ar-20"
+      - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts/llvm-ar-20"
       - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand/llvm-ar-20"
       - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim/llvm-ar-20"
       - "/Users/geertroumen/.lmstudio/bin/llvm-ar-20"
@@ -2328,6 +2382,7 @@ events:
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin/llvm-ar20"
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin/llvm-ar20"
       - "/Library/Apple/usr/bin/llvm-ar20"
+      - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts/llvm-ar20"
       - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand/llvm-ar20"
       - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim/llvm-ar20"
       - "/Users/geertroumen/.lmstudio/bin/llvm-ar20"
@@ -2360,6 +2415,7 @@ events:
         - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin"
         - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin"
         - "/Library/Apple/usr/bin"
+        - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts"
         - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand"
         - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim"
         - "/Users/geertroumen/.lmstudio/bin"
@@ -2413,6 +2469,7 @@ events:
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin/"
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin/"
       - "/Library/Apple/usr/bin/"
+      - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts/"
       - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand/"
       - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim/"
       - "/Users/geertroumen/.lmstudio/bin/"
@@ -2443,6 +2500,7 @@ events:
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin/llvm-ranlib-20.1"
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin/llvm-ranlib-20.1"
       - "/Library/Apple/usr/bin/llvm-ranlib-20.1"
+      - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts/llvm-ranlib-20.1"
       - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand/llvm-ranlib-20.1"
       - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim/llvm-ranlib-20.1"
       - "/Users/geertroumen/.lmstudio/bin/llvm-ranlib-20.1"
@@ -2472,6 +2530,7 @@ events:
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin/llvm-ranlib-20"
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin/llvm-ranlib-20"
       - "/Library/Apple/usr/bin/llvm-ranlib-20"
+      - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts/llvm-ranlib-20"
       - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand/llvm-ranlib-20"
       - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim/llvm-ranlib-20"
       - "/Users/geertroumen/.lmstudio/bin/llvm-ranlib-20"
@@ -2501,6 +2560,7 @@ events:
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin/llvm-ranlib20"
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin/llvm-ranlib20"
       - "/Library/Apple/usr/bin/llvm-ranlib20"
+      - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts/llvm-ranlib20"
       - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand/llvm-ranlib20"
       - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim/llvm-ranlib20"
       - "/Users/geertroumen/.lmstudio/bin/llvm-ranlib20"
@@ -2533,6 +2593,7 @@ events:
         - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin"
         - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin"
         - "/Library/Apple/usr/bin"
+        - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts"
         - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand"
         - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim"
         - "/Users/geertroumen/.lmstudio/bin"
@@ -2586,6 +2647,7 @@ events:
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin/"
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin/"
       - "/Library/Apple/usr/bin/"
+      - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts/"
       - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand/"
       - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim/"
       - "/Users/geertroumen/.lmstudio/bin/"
@@ -2616,6 +2678,7 @@ events:
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin/clang-scan-deps-20.1"
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin/clang-scan-deps-20.1"
       - "/Library/Apple/usr/bin/clang-scan-deps-20.1"
+      - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts/clang-scan-deps-20.1"
       - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand/clang-scan-deps-20.1"
       - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim/clang-scan-deps-20.1"
       - "/Users/geertroumen/.lmstudio/bin/clang-scan-deps-20.1"
@@ -2645,6 +2708,7 @@ events:
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin/clang-scan-deps-20"
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin/clang-scan-deps-20"
       - "/Library/Apple/usr/bin/clang-scan-deps-20"
+      - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts/clang-scan-deps-20"
       - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand/clang-scan-deps-20"
       - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim/clang-scan-deps-20"
       - "/Users/geertroumen/.lmstudio/bin/clang-scan-deps-20"
@@ -2674,6 +2738,7 @@ events:
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin/clang-scan-deps20"
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin/clang-scan-deps20"
       - "/Library/Apple/usr/bin/clang-scan-deps20"
+      - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts/clang-scan-deps20"
       - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand/clang-scan-deps20"
       - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim/clang-scan-deps20"
       - "/Users/geertroumen/.lmstudio/bin/clang-scan-deps20"
@@ -2703,6 +2768,7 @@ events:
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin/clang-scan-deps"
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin/clang-scan-deps"
       - "/Library/Apple/usr/bin/clang-scan-deps"
+      - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts/clang-scan-deps"
       - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand/clang-scan-deps"
       - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim/clang-scan-deps"
       - "/Users/geertroumen/.lmstudio/bin/clang-scan-deps"
@@ -2735,6 +2801,7 @@ events:
         - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin"
         - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin"
         - "/Library/Apple/usr/bin"
+        - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts"
         - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand"
         - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim"
         - "/Users/geertroumen/.lmstudio/bin"
@@ -2785,6 +2852,7 @@ events:
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin/"
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin/"
       - "/Library/Apple/usr/bin/"
+      - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts/"
       - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand/"
       - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim/"
       - "/Users/geertroumen/.lmstudio/bin/"
@@ -2823,6 +2891,7 @@ events:
         - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin"
         - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin"
         - "/Library/Apple/usr/bin"
+        - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts"
         - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand"
         - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim"
         - "/Users/geertroumen/.lmstudio/bin"
@@ -2915,6 +2984,7 @@ events:
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin/"
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin/"
       - "/Library/Apple/usr/bin/"
+      - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts/"
       - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand/"
       - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim/"
       - "/Users/geertroumen/.lmstudio/bin/"
@@ -2945,6 +3015,7 @@ events:
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin/llvm-ar-"
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin/llvm-ar-"
       - "/Library/Apple/usr/bin/llvm-ar-"
+      - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts/llvm-ar-"
       - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand/llvm-ar-"
       - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim/llvm-ar-"
       - "/Users/geertroumen/.lmstudio/bin/llvm-ar-"
@@ -2974,6 +3045,7 @@ events:
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin/llvm-ar-"
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin/llvm-ar-"
       - "/Library/Apple/usr/bin/llvm-ar-"
+      - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts/llvm-ar-"
       - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand/llvm-ar-"
       - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim/llvm-ar-"
       - "/Users/geertroumen/.lmstudio/bin/llvm-ar-"
@@ -3006,6 +3078,7 @@ events:
         - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin"
         - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin"
         - "/Library/Apple/usr/bin"
+        - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts"
         - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand"
         - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim"
         - "/Users/geertroumen/.lmstudio/bin"
@@ -3059,6 +3132,7 @@ events:
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin/"
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin/"
       - "/Library/Apple/usr/bin/"
+      - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts/"
       - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand/"
       - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim/"
       - "/Users/geertroumen/.lmstudio/bin/"
@@ -3089,6 +3163,7 @@ events:
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin/llvm-ranlib-"
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin/llvm-ranlib-"
       - "/Library/Apple/usr/bin/llvm-ranlib-"
+      - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts/llvm-ranlib-"
       - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand/llvm-ranlib-"
       - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim/llvm-ranlib-"
       - "/Users/geertroumen/.lmstudio/bin/llvm-ranlib-"
@@ -3118,6 +3193,7 @@ events:
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin/llvm-ranlib-"
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin/llvm-ranlib-"
       - "/Library/Apple/usr/bin/llvm-ranlib-"
+      - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts/llvm-ranlib-"
       - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand/llvm-ranlib-"
       - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim/llvm-ranlib-"
       - "/Users/geertroumen/.lmstudio/bin/llvm-ranlib-"
@@ -3150,6 +3226,7 @@ events:
         - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin"
         - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin"
         - "/Library/Apple/usr/bin"
+        - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts"
         - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand"
         - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim"
         - "/Users/geertroumen/.lmstudio/bin"
@@ -3203,6 +3280,7 @@ events:
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin/"
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin/"
       - "/Library/Apple/usr/bin/"
+      - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts/"
       - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand/"
       - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim/"
       - "/Users/geertroumen/.lmstudio/bin/"
@@ -3233,6 +3311,7 @@ events:
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin/clang-scan-deps-"
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin/clang-scan-deps-"
       - "/Library/Apple/usr/bin/clang-scan-deps-"
+      - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts/clang-scan-deps-"
       - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand/clang-scan-deps-"
       - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim/clang-scan-deps-"
       - "/Users/geertroumen/.lmstudio/bin/clang-scan-deps-"
@@ -3262,6 +3341,7 @@ events:
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin/clang-scan-deps-"
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin/clang-scan-deps-"
       - "/Library/Apple/usr/bin/clang-scan-deps-"
+      - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts/clang-scan-deps-"
       - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand/clang-scan-deps-"
       - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim/clang-scan-deps-"
       - "/Users/geertroumen/.lmstudio/bin/clang-scan-deps-"
@@ -3291,6 +3371,7 @@ events:
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin/clang-scan-deps"
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin/clang-scan-deps"
       - "/Library/Apple/usr/bin/clang-scan-deps"
+      - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts/clang-scan-deps"
       - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand/clang-scan-deps"
       - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim/clang-scan-deps"
       - "/Users/geertroumen/.lmstudio/bin/clang-scan-deps"
@@ -3320,6 +3401,7 @@ events:
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin/clang-scan-deps"
       - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin/clang-scan-deps"
       - "/Library/Apple/usr/bin/clang-scan-deps"
+      - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts/clang-scan-deps"
       - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand/clang-scan-deps"
       - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim/clang-scan-deps"
       - "/Users/geertroumen/.lmstudio/bin/clang-scan-deps"
@@ -3352,6 +3434,7 @@ events:
         - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/bin"
         - "/var/run/com.apple.security.cryptexd/codex.system/bootstrap/usr/appleinternal/bin"
         - "/Library/Apple/usr/bin"
+        - "/Users/geertroumen/.vscode/extensions/ms-python.debugpy-2026.6.0-darwin-arm64/bundled/scripts/noConfigScripts"
         - "/Users/geertroumen/Library/Application Support/Code/User/globalStorage/github.copilot-chat/debugCommand"
         - "/Applications/Visual Studio Code.app/Contents/Resources/app/bin/copilot-shim"
         - "/Users/geertroumen/.lmstudio/bin"
@@ -3365,8 +3448,8 @@ events:
     checks:
       - "Detecting C compiler ABI info"
     directories:
-      source: "/Users/geertroumen/Code/Git/esp-wasm/toolchain/sysroot-project/build-usb/CMakeFiles/CMakeScratch/TryCompile-3nM0gX"
-      binary: "/Users/geertroumen/Code/Git/esp-wasm/toolchain/sysroot-project/build-usb/CMakeFiles/CMakeScratch/TryCompile-3nM0gX"
+      source: "/Users/geertroumen/Code/Git/esp-wasm/toolchain/sysroot-project/build-usb/CMakeFiles/CMakeScratch/TryCompile-BOph7b"
+      binary: "/Users/geertroumen/Code/Git/esp-wasm/toolchain/sysroot-project/build-usb/CMakeFiles/CMakeScratch/TryCompile-BOph7b"
     cmakeVariables:
       CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS: "CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS-NOTFOUND"
       CMAKE_C_FLAGS: "--target=xtensa-esp-elf -mcpu=esp32s3 "
@@ -3377,16 +3460,16 @@ events:
       variable: "CMAKE_C_ABI_COMPILED"
       cached: true
       stdout: |
-        Change Dir: '/Users/geertroumen/Code/Git/esp-wasm/toolchain/sysroot-project/build-usb/CMakeFiles/CMakeScratch/TryCompile-3nM0gX'
+        Change Dir: '/Users/geertroumen/Code/Git/esp-wasm/toolchain/sysroot-project/build-usb/CMakeFiles/CMakeScratch/TryCompile-BOph7b'
         
-        Run Build Command(s): /opt/homebrew/bin/ninja -v cmTC_fea00
-        [1/2] /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/clang   --target=xtensa-esp-elf -mcpu=esp32s3     -v -MD -MT CMakeFiles/cmTC_fea00.dir/CMakeCCompilerABI.c.obj -MF CMakeFiles/cmTC_fea00.dir/CMakeCCompilerABI.c.obj.d -o CMakeFiles/cmTC_fea00.dir/CMakeCCompilerABI.c.obj -c /opt/homebrew/share/cmake/Modules/CMakeCCompilerABI.c
+        Run Build Command(s): /opt/homebrew/bin/ninja -v cmTC_b7c40
+        [1/2] /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/clang   --target=xtensa-esp-elf -mcpu=esp32s3     -v -MD -MT CMakeFiles/cmTC_b7c40.dir/CMakeCCompilerABI.c.obj -MF CMakeFiles/cmTC_b7c40.dir/CMakeCCompilerABI.c.obj.d -o CMakeFiles/cmTC_b7c40.dir/CMakeCCompilerABI.c.obj -c /opt/homebrew/share/cmake/Modules/CMakeCCompilerABI.c
         Espressif clang version 20.1.1 (https://github.com/espressif/llvm-project.git esp-20.1.1_20250829)
         Target: xtensa-esp-unknown-elf
         Thread model: posix
         InstalledDir: /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin
          (in-process)
-         "/Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/clang-20" -cc1 -triple xtensa-esp-unknown-elf -emit-obj -disable-free -clear-ast-before-backend -disable-llvm-verifier -discard-value-names -main-file-name CMakeCCompilerABI.c -mrelocation-model static -mframe-pointer=all -fmath-errno -ffp-contract=on -fno-rounding-math -mconstructor-aliases -nostdsysteminc -target-cpu esp32s3 -target-feature +density -target-feature +fp -target-feature +windowed -target-feature +bool -target-feature +loop -target-feature +sext -target-feature +nsa -target-feature +clamps -target-feature +minmax -target-feature +mul32 -target-feature +mul32high -target-feature +div32 -target-feature +mac16 -target-feature +s32c1i -target-feature +threadptr -target-feature +atomctl -target-feature +memctl -target-feature +debug -target-feature +exception -target-feature +highpriinterrupts -target-feature +coprocessor -target-feature +interrupt -target-feature +rvector -target-feature +timerint -target-feature +prid -target-feature +regprotect -target-feature +miscsr -target-feature +esp32s3 -debugger-tuning=gdb -fdebug-compilation-dir=/Users/geertroumen/Code/Git/esp-wasm/toolchain/sysroot-project/build-usb/CMakeFiles/CMakeScratch/TryCompile-3nM0gX -target-linker-version 609 -v -fcoverage-compilation-dir=/Users/geertroumen/Code/Git/esp-wasm/toolchain/sysroot-project/build-usb/CMakeFiles/CMakeScratch/TryCompile-3nM0gX -resource-dir /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/lib/clang/20 -dependency-file CMakeFiles/cmTC_fea00.dir/CMakeCCompilerABI.c.obj.d -MT CMakeFiles/cmTC_fea00.dir/CMakeCCompilerABI.c.obj -sys-header-deps -internal-isystem /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/lib/clang/20/include -internal-isystem /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/../lib/clang-runtimes/xtensa-esp-unknown-elf/esp32s3/include -ferror-limit 19 -fno-signed-char -fgnuc-version=4.2.1 -fskip-odr-check-in-gmf -faddrsig -o CMakeFiles/cmTC_fea00.dir/CMakeCCompilerABI.c.obj -x c /opt/homebrew/share/cmake/Modules/CMakeCCompilerABI.c
+         "/Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/clang-20" -cc1 -triple xtensa-esp-unknown-elf -emit-obj -disable-free -clear-ast-before-backend -disable-llvm-verifier -discard-value-names -main-file-name CMakeCCompilerABI.c -mrelocation-model static -mframe-pointer=all -fmath-errno -ffp-contract=on -fno-rounding-math -mconstructor-aliases -nostdsysteminc -target-cpu esp32s3 -target-feature +density -target-feature +fp -target-feature +windowed -target-feature +bool -target-feature +loop -target-feature +sext -target-feature +nsa -target-feature +clamps -target-feature +minmax -target-feature +mul32 -target-feature +mul32high -target-feature +div32 -target-feature +mac16 -target-feature +s32c1i -target-feature +threadptr -target-feature +atomctl -target-feature +memctl -target-feature +debug -target-feature +exception -target-feature +highpriinterrupts -target-feature +coprocessor -target-feature +interrupt -target-feature +rvector -target-feature +timerint -target-feature +prid -target-feature +regprotect -target-feature +miscsr -target-feature +esp32s3 -debugger-tuning=gdb -fdebug-compilation-dir=/Users/geertroumen/Code/Git/esp-wasm/toolchain/sysroot-project/build-usb/CMakeFiles/CMakeScratch/TryCompile-BOph7b -target-linker-version 609 -v -fcoverage-compilation-dir=/Users/geertroumen/Code/Git/esp-wasm/toolchain/sysroot-project/build-usb/CMakeFiles/CMakeScratch/TryCompile-BOph7b -resource-dir /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/lib/clang/20 -dependency-file CMakeFiles/cmTC_b7c40.dir/CMakeCCompilerABI.c.obj.d -MT CMakeFiles/cmTC_b7c40.dir/CMakeCCompilerABI.c.obj -sys-header-deps -internal-isystem /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/lib/clang/20/include -internal-isystem /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/../lib/clang-runtimes/xtensa-esp-unknown-elf/esp32s3/include -ferror-limit 19 -fno-signed-char -fgnuc-version=4.2.1 -fskip-odr-check-in-gmf -faddrsig -o CMakeFiles/cmTC_b7c40.dir/CMakeCCompilerABI.c.obj -x c /opt/homebrew/share/cmake/Modules/CMakeCCompilerABI.c
         clang -cc1 version 20.1.1 based upon LLVM 20.1.1 default target riscv32-esp-elf
         ignoring duplicate directory "/Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/lib/clang/20/include"
         #include "..." search starts here:
@@ -3394,12 +3477,12 @@ events:
          /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/lib/clang/20/include
          /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/../lib/clang-runtimes/xtensa-esp-unknown-elf/esp32s3/include
         End of search list.
-        [2/2] : && /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/clang --target=xtensa-esp-elf -mcpu=esp32s3 -nostartfiles --ld-path=xtensa-esp32s3-elf-clang-ld -z noexecstack  -v CMakeFiles/cmTC_fea00.dir/CMakeCCompilerABI.c.obj -o cmTC_fea00   && :
+        [2/2] : && /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/clang --target=xtensa-esp-elf -mcpu=esp32s3 -nostartfiles --ld-path=xtensa-esp32s3-elf-clang-ld -z noexecstack  -v CMakeFiles/cmTC_b7c40.dir/CMakeCCompilerABI.c.obj -o cmTC_b7c40   && :
         Espressif clang version 20.1.1 (https://github.com/espressif/llvm-project.git esp-20.1.1_20250829)
         Target: xtensa-esp-unknown-elf
         Thread model: posix
         InstalledDir: /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin
-         "/Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/xtensa-esp32s3-elf-clang-ld" -o cmTC_fea00 -X -z noexecstack CMakeFiles/cmTC_fea00.dir/CMakeCCompilerABI.c.obj -L/Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/../lib/clang-runtimes/xtensa-esp-unknown-elf/esp32s3/lib -lc -lnosys /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/../lib/clang-runtimes/xtensa-esp-unknown-elf/esp32s3/lib/libclang_rt.builtins.a
+         "/Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/xtensa-esp32s3-elf-clang-ld" -o cmTC_b7c40 -X -z noexecstack CMakeFiles/cmTC_b7c40.dir/CMakeCCompilerABI.c.obj -L/Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/../lib/clang-runtimes/xtensa-esp-unknown-elf/esp32s3/lib -lc -lnosys /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/../lib/clang-runtimes/xtensa-esp-unknown-elf/esp32s3/lib/libclang_rt.builtins.a
         /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/xtensa-esp32s3-elf-clang-ld: warning: cannot find entry symbol _start; defaulting to 00400094
         
       exitCode: 0
@@ -3433,16 +3516,16 @@ events:
       Parsed C implicit link information:
         link line regex: [^( *|.*[/\\])(ld[0-9]*(|\\.[a-rt-z][a-z]*|\\.s[a-np-z][a-z]*|\\.so[a-z]+)|CMAKE_LINK_STARTFILE-NOTFOUND|([^/\\]+-)?ld|collect2)[^/\\]*( |$)]
         linker tool regex: [^[ 	]*(->|")?[ 	]*(([^"]*[/\\])?(ld[0-9]*(|\\.[a-rt-z][a-z]*|\\.s[a-np-z][a-z]*|\\.so[a-z]+)))("|,| |$)]
-        ignore line: [Change Dir: '/Users/geertroumen/Code/Git/esp-wasm/toolchain/sysroot-project/build-usb/CMakeFiles/CMakeScratch/TryCompile-3nM0gX']
+        ignore line: [Change Dir: '/Users/geertroumen/Code/Git/esp-wasm/toolchain/sysroot-project/build-usb/CMakeFiles/CMakeScratch/TryCompile-BOph7b']
         ignore line: []
-        ignore line: [Run Build Command(s): /opt/homebrew/bin/ninja -v cmTC_fea00]
-        ignore line: [[1/2] /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/clang   --target=xtensa-esp-elf -mcpu=esp32s3     -v -MD -MT CMakeFiles/cmTC_fea00.dir/CMakeCCompilerABI.c.obj -MF CMakeFiles/cmTC_fea00.dir/CMakeCCompilerABI.c.obj.d -o CMakeFiles/cmTC_fea00.dir/CMakeCCompilerABI.c.obj -c /opt/homebrew/share/cmake/Modules/CMakeCCompilerABI.c]
+        ignore line: [Run Build Command(s): /opt/homebrew/bin/ninja -v cmTC_b7c40]
+        ignore line: [[1/2] /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/clang   --target=xtensa-esp-elf -mcpu=esp32s3     -v -MD -MT CMakeFiles/cmTC_b7c40.dir/CMakeCCompilerABI.c.obj -MF CMakeFiles/cmTC_b7c40.dir/CMakeCCompilerABI.c.obj.d -o CMakeFiles/cmTC_b7c40.dir/CMakeCCompilerABI.c.obj -c /opt/homebrew/share/cmake/Modules/CMakeCCompilerABI.c]
         ignore line: [Espressif clang version 20.1.1 (https://github.com/espressif/llvm-project.git esp-20.1.1_20250829)]
         ignore line: [Target: xtensa-esp-unknown-elf]
         ignore line: [Thread model: posix]
         ignore line: [InstalledDir: /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin]
         ignore line: [ (in-process)]
-        ignore line: [ "/Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/clang-20" -cc1 -triple xtensa-esp-unknown-elf -emit-obj -disable-free -clear-ast-before-backend -disable-llvm-verifier -discard-value-names -main-file-name CMakeCCompilerABI.c -mrelocation-model static -mframe-pointer=all -fmath-errno -ffp-contract=on -fno-rounding-math -mconstructor-aliases -nostdsysteminc -target-cpu esp32s3 -target-feature +density -target-feature +fp -target-feature +windowed -target-feature +bool -target-feature +loop -target-feature +sext -target-feature +nsa -target-feature +clamps -target-feature +minmax -target-feature +mul32 -target-feature +mul32high -target-feature +div32 -target-feature +mac16 -target-feature +s32c1i -target-feature +threadptr -target-feature +atomctl -target-feature +memctl -target-feature +debug -target-feature +exception -target-feature +highpriinterrupts -target-feature +coprocessor -target-feature +interrupt -target-feature +rvector -target-feature +timerint -target-feature +prid -target-feature +regprotect -target-feature +miscsr -target-feature +esp32s3 -debugger-tuning=gdb -fdebug-compilation-dir=/Users/geertroumen/Code/Git/esp-wasm/toolchain/sysroot-project/build-usb/CMakeFiles/CMakeScratch/TryCompile-3nM0gX -target-linker-version 609 -v -fcoverage-compilation-dir=/Users/geertroumen/Code/Git/esp-wasm/toolchain/sysroot-project/build-usb/CMakeFiles/CMakeScratch/TryCompile-3nM0gX -resource-dir /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/lib/clang/20 -dependency-file CMakeFiles/cmTC_fea00.dir/CMakeCCompilerABI.c.obj.d -MT CMakeFiles/cmTC_fea00.dir/CMakeCCompilerABI.c.obj -sys-header-deps -internal-isystem /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/lib/clang/20/include -internal-isystem /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/../lib/clang-runtimes/xtensa-esp-unknown-elf/esp32s3/include -ferror-limit 19 -fno-signed-char -fgnuc-version=4.2.1 -fskip-odr-check-in-gmf -faddrsig -o CMakeFiles/cmTC_fea00.dir/CMakeCCompilerABI.c.obj -x c /opt/homebrew/share/cmake/Modules/CMakeCCompilerABI.c]
+        ignore line: [ "/Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/clang-20" -cc1 -triple xtensa-esp-unknown-elf -emit-obj -disable-free -clear-ast-before-backend -disable-llvm-verifier -discard-value-names -main-file-name CMakeCCompilerABI.c -mrelocation-model static -mframe-pointer=all -fmath-errno -ffp-contract=on -fno-rounding-math -mconstructor-aliases -nostdsysteminc -target-cpu esp32s3 -target-feature +density -target-feature +fp -target-feature +windowed -target-feature +bool -target-feature +loop -target-feature +sext -target-feature +nsa -target-feature +clamps -target-feature +minmax -target-feature +mul32 -target-feature +mul32high -target-feature +div32 -target-feature +mac16 -target-feature +s32c1i -target-feature +threadptr -target-feature +atomctl -target-feature +memctl -target-feature +debug -target-feature +exception -target-feature +highpriinterrupts -target-feature +coprocessor -target-feature +interrupt -target-feature +rvector -target-feature +timerint -target-feature +prid -target-feature +regprotect -target-feature +miscsr -target-feature +esp32s3 -debugger-tuning=gdb -fdebug-compilation-dir=/Users/geertroumen/Code/Git/esp-wasm/toolchain/sysroot-project/build-usb/CMakeFiles/CMakeScratch/TryCompile-BOph7b -target-linker-version 609 -v -fcoverage-compilation-dir=/Users/geertroumen/Code/Git/esp-wasm/toolchain/sysroot-project/build-usb/CMakeFiles/CMakeScratch/TryCompile-BOph7b -resource-dir /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/lib/clang/20 -dependency-file CMakeFiles/cmTC_b7c40.dir/CMakeCCompilerABI.c.obj.d -MT CMakeFiles/cmTC_b7c40.dir/CMakeCCompilerABI.c.obj -sys-header-deps -internal-isystem /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/lib/clang/20/include -internal-isystem /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/../lib/clang-runtimes/xtensa-esp-unknown-elf/esp32s3/include -ferror-limit 19 -fno-signed-char -fgnuc-version=4.2.1 -fskip-odr-check-in-gmf -faddrsig -o CMakeFiles/cmTC_b7c40.dir/CMakeCCompilerABI.c.obj -x c /opt/homebrew/share/cmake/Modules/CMakeCCompilerABI.c]
         ignore line: [clang -cc1 version 20.1.1 based upon LLVM 20.1.1 default target riscv32-esp-elf]
         ignore line: [ignoring duplicate directory "/Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/lib/clang/20/include"]
         ignore line: [#include "..." search starts here:]
@@ -3450,18 +3533,18 @@ events:
         ignore line: [ /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/lib/clang/20/include]
         ignore line: [ /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/../lib/clang-runtimes/xtensa-esp-unknown-elf/esp32s3/include]
         ignore line: [End of search list.]
-        ignore line: [[2/2] : && /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/clang --target=xtensa-esp-elf -mcpu=esp32s3 -nostartfiles --ld-path=xtensa-esp32s3-elf-clang-ld -z noexecstack  -v CMakeFiles/cmTC_fea00.dir/CMakeCCompilerABI.c.obj -o cmTC_fea00   && :]
+        ignore line: [[2/2] : && /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/clang --target=xtensa-esp-elf -mcpu=esp32s3 -nostartfiles --ld-path=xtensa-esp32s3-elf-clang-ld -z noexecstack  -v CMakeFiles/cmTC_b7c40.dir/CMakeCCompilerABI.c.obj -o cmTC_b7c40   && :]
         ignore line: [Espressif clang version 20.1.1 (https://github.com/espressif/llvm-project.git esp-20.1.1_20250829)]
         ignore line: [Target: xtensa-esp-unknown-elf]
         ignore line: [Thread model: posix]
         ignore line: [InstalledDir: /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin]
-        link line: [ "/Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/xtensa-esp32s3-elf-clang-ld" -o cmTC_fea00 -X -z noexecstack CMakeFiles/cmTC_fea00.dir/CMakeCCompilerABI.c.obj -L/Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/../lib/clang-runtimes/xtensa-esp-unknown-elf/esp32s3/lib -lc -lnosys /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/../lib/clang-runtimes/xtensa-esp-unknown-elf/esp32s3/lib/libclang_rt.builtins.a]
+        link line: [ "/Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/xtensa-esp32s3-elf-clang-ld" -o cmTC_b7c40 -X -z noexecstack CMakeFiles/cmTC_b7c40.dir/CMakeCCompilerABI.c.obj -L/Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/../lib/clang-runtimes/xtensa-esp-unknown-elf/esp32s3/lib -lc -lnosys /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/../lib/clang-runtimes/xtensa-esp-unknown-elf/esp32s3/lib/libclang_rt.builtins.a]
           arg [/Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/xtensa-esp32s3-elf-clang-ld] ==> ignore
           arg [-o] ==> ignore
-          arg [cmTC_fea00] ==> ignore
+          arg [cmTC_b7c40] ==> ignore
           arg [-X] ==> ignore
           arg [-znoexecstack] ==> ignore
-          arg [CMakeFiles/cmTC_fea00.dir/CMakeCCompilerABI.c.obj] ==> ignore
+          arg [CMakeFiles/cmTC_b7c40.dir/CMakeCCompilerABI.c.obj] ==> ignore
           arg [-L/Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/../lib/clang-runtimes/xtensa-esp-unknown-elf/esp32s3/lib] ==> dir [/Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/../lib/clang-runtimes/xtensa-esp-unknown-elf/esp32s3/lib]
           arg [-lc] ==> lib [c]
           arg [-lnosys] ==> lib [nosys]
@@ -3488,8 +3571,8 @@ events:
     checks:
       - "Detecting CXX compiler ABI info"
     directories:
-      source: "/Users/geertroumen/Code/Git/esp-wasm/toolchain/sysroot-project/build-usb/CMakeFiles/CMakeScratch/TryCompile-kdOPPA"
-      binary: "/Users/geertroumen/Code/Git/esp-wasm/toolchain/sysroot-project/build-usb/CMakeFiles/CMakeScratch/TryCompile-kdOPPA"
+      source: "/Users/geertroumen/Code/Git/esp-wasm/toolchain/sysroot-project/build-usb/CMakeFiles/CMakeScratch/TryCompile-OFdBDM"
+      binary: "/Users/geertroumen/Code/Git/esp-wasm/toolchain/sysroot-project/build-usb/CMakeFiles/CMakeScratch/TryCompile-OFdBDM"
     cmakeVariables:
       CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS: "CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS-NOTFOUND"
       CMAKE_CXX_FLAGS: "--target=xtensa-esp-elf -mcpu=esp32s3 "
@@ -3501,16 +3584,16 @@ events:
       variable: "CMAKE_CXX_ABI_COMPILED"
       cached: true
       stdout: |
-        Change Dir: '/Users/geertroumen/Code/Git/esp-wasm/toolchain/sysroot-project/build-usb/CMakeFiles/CMakeScratch/TryCompile-kdOPPA'
+        Change Dir: '/Users/geertroumen/Code/Git/esp-wasm/toolchain/sysroot-project/build-usb/CMakeFiles/CMakeScratch/TryCompile-OFdBDM'
         
-        Run Build Command(s): /opt/homebrew/bin/ninja -v cmTC_a09eb
-        [1/2] /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/clang++   --target=xtensa-esp-elf -mcpu=esp32s3     -v -MD -MT CMakeFiles/cmTC_a09eb.dir/CMakeCXXCompilerABI.cpp.obj -MF CMakeFiles/cmTC_a09eb.dir/CMakeCXXCompilerABI.cpp.obj.d -o CMakeFiles/cmTC_a09eb.dir/CMakeCXXCompilerABI.cpp.obj -c /opt/homebrew/share/cmake/Modules/CMakeCXXCompilerABI.cpp
+        Run Build Command(s): /opt/homebrew/bin/ninja -v cmTC_62536
+        [1/2] /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/clang++   --target=xtensa-esp-elf -mcpu=esp32s3     -v -MD -MT CMakeFiles/cmTC_62536.dir/CMakeCXXCompilerABI.cpp.obj -MF CMakeFiles/cmTC_62536.dir/CMakeCXXCompilerABI.cpp.obj.d -o CMakeFiles/cmTC_62536.dir/CMakeCXXCompilerABI.cpp.obj -c /opt/homebrew/share/cmake/Modules/CMakeCXXCompilerABI.cpp
         Espressif clang version 20.1.1 (https://github.com/espressif/llvm-project.git esp-20.1.1_20250829)
         Target: xtensa-esp-unknown-elf
         Thread model: posix
         InstalledDir: /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin
          (in-process)
-         "/Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/clang-20" -cc1 -triple xtensa-esp-unknown-elf -emit-obj -disable-free -clear-ast-before-backend -disable-llvm-verifier -discard-value-names -main-file-name CMakeCXXCompilerABI.cpp -mrelocation-model static -mframe-pointer=all -fmath-errno -ffp-contract=on -fno-rounding-math -mconstructor-aliases -nostdsysteminc -target-cpu esp32s3 -target-feature +density -target-feature +fp -target-feature +windowed -target-feature +bool -target-feature +loop -target-feature +sext -target-feature +nsa -target-feature +clamps -target-feature +minmax -target-feature +mul32 -target-feature +mul32high -target-feature +div32 -target-feature +mac16 -target-feature +s32c1i -target-feature +threadptr -target-feature +atomctl -target-feature +memctl -target-feature +debug -target-feature +exception -target-feature +highpriinterrupts -target-feature +coprocessor -target-feature +interrupt -target-feature +rvector -target-feature +timerint -target-feature +prid -target-feature +regprotect -target-feature +miscsr -target-feature +esp32s3 -debugger-tuning=gdb -fdebug-compilation-dir=/Users/geertroumen/Code/Git/esp-wasm/toolchain/sysroot-project/build-usb/CMakeFiles/CMakeScratch/TryCompile-kdOPPA -target-linker-version 609 -v -fcoverage-compilation-dir=/Users/geertroumen/Code/Git/esp-wasm/toolchain/sysroot-project/build-usb/CMakeFiles/CMakeScratch/TryCompile-kdOPPA -resource-dir /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/lib/clang/20 -dependency-file CMakeFiles/cmTC_a09eb.dir/CMakeCXXCompilerABI.cpp.obj.d -MT CMakeFiles/cmTC_a09eb.dir/CMakeCXXCompilerABI.cpp.obj -sys-header-deps -internal-isystem /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/../lib/clang-runtimes/xtensa-esp-unknown-elf/esp32s3/include/c++/14.2.0 -internal-isystem /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/../lib/clang-runtimes/xtensa-esp-unknown-elf/include/c++/14.2.0 -internal-isystem /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/lib/clang/20/include -internal-isystem /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/../lib/clang-runtimes/xtensa-esp-unknown-elf/esp32s3/include -fdeprecated-macro -ferror-limit 19 -fno-signed-char -fgnuc-version=4.2.1 -fskip-odr-check-in-gmf -fcxx-exceptions -fexceptions -faddrsig -D__GCC_HAVE_DWARF2_CFI_ASM=1 -o CMakeFiles/cmTC_a09eb.dir/CMakeCXXCompilerABI.cpp.obj -x c++ /opt/homebrew/share/cmake/Modules/CMakeCXXCompilerABI.cpp
+         "/Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/clang-20" -cc1 -triple xtensa-esp-unknown-elf -emit-obj -disable-free -clear-ast-before-backend -disable-llvm-verifier -discard-value-names -main-file-name CMakeCXXCompilerABI.cpp -mrelocation-model static -mframe-pointer=all -fmath-errno -ffp-contract=on -fno-rounding-math -mconstructor-aliases -nostdsysteminc -target-cpu esp32s3 -target-feature +density -target-feature +fp -target-feature +windowed -target-feature +bool -target-feature +loop -target-feature +sext -target-feature +nsa -target-feature +clamps -target-feature +minmax -target-feature +mul32 -target-feature +mul32high -target-feature +div32 -target-feature +mac16 -target-feature +s32c1i -target-feature +threadptr -target-feature +atomctl -target-feature +memctl -target-feature +debug -target-feature +exception -target-feature +highpriinterrupts -target-feature +coprocessor -target-feature +interrupt -target-feature +rvector -target-feature +timerint -target-feature +prid -target-feature +regprotect -target-feature +miscsr -target-feature +esp32s3 -debugger-tuning=gdb -fdebug-compilation-dir=/Users/geertroumen/Code/Git/esp-wasm/toolchain/sysroot-project/build-usb/CMakeFiles/CMakeScratch/TryCompile-OFdBDM -target-linker-version 609 -v -fcoverage-compilation-dir=/Users/geertroumen/Code/Git/esp-wasm/toolchain/sysroot-project/build-usb/CMakeFiles/CMakeScratch/TryCompile-OFdBDM -resource-dir /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/lib/clang/20 -dependency-file CMakeFiles/cmTC_62536.dir/CMakeCXXCompilerABI.cpp.obj.d -MT CMakeFiles/cmTC_62536.dir/CMakeCXXCompilerABI.cpp.obj -sys-header-deps -internal-isystem /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/../lib/clang-runtimes/xtensa-esp-unknown-elf/esp32s3/include/c++/14.2.0 -internal-isystem /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/../lib/clang-runtimes/xtensa-esp-unknown-elf/include/c++/14.2.0 -internal-isystem /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/lib/clang/20/include -internal-isystem /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/../lib/clang-runtimes/xtensa-esp-unknown-elf/esp32s3/include -fdeprecated-macro -ferror-limit 19 -fno-signed-char -fgnuc-version=4.2.1 -fskip-odr-check-in-gmf -fcxx-exceptions -fexceptions -faddrsig -D__GCC_HAVE_DWARF2_CFI_ASM=1 -o CMakeFiles/cmTC_62536.dir/CMakeCXXCompilerABI.cpp.obj -x c++ /opt/homebrew/share/cmake/Modules/CMakeCXXCompilerABI.cpp
         clang -cc1 version 20.1.1 based upon LLVM 20.1.1 default target riscv32-esp-elf
         ignoring duplicate directory "/Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/lib/clang/20/include"
         #include "..." search starts here:
@@ -3520,12 +3603,12 @@ events:
          /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/lib/clang/20/include
          /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/../lib/clang-runtimes/xtensa-esp-unknown-elf/esp32s3/include
         End of search list.
-        [2/2] : && /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/clang++ --target=xtensa-esp-elf -mcpu=esp32s3 -nostartfiles --ld-path=xtensa-esp32s3-elf-clang-ld -z noexecstack  -v CMakeFiles/cmTC_a09eb.dir/CMakeCXXCompilerABI.cpp.obj -o cmTC_a09eb   && :
+        [2/2] : && /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/clang++ --target=xtensa-esp-elf -mcpu=esp32s3 -nostartfiles --ld-path=xtensa-esp32s3-elf-clang-ld -z noexecstack  -v CMakeFiles/cmTC_62536.dir/CMakeCXXCompilerABI.cpp.obj -o cmTC_62536   && :
         Espressif clang version 20.1.1 (https://github.com/espressif/llvm-project.git esp-20.1.1_20250829)
         Target: xtensa-esp-unknown-elf
         Thread model: posix
         InstalledDir: /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin
-         "/Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/xtensa-esp32s3-elf-clang-ld" -o cmTC_a09eb -X -z noexecstack CMakeFiles/cmTC_a09eb.dir/CMakeCXXCompilerABI.cpp.obj -L/Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/../lib/clang-runtimes/xtensa-esp-unknown-elf/esp32s3/lib -lstdc++ -lm -lc -lnosys /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/../lib/clang-runtimes/xtensa-esp-unknown-elf/esp32s3/lib/libclang_rt.builtins.a
+         "/Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/xtensa-esp32s3-elf-clang-ld" -o cmTC_62536 -X -z noexecstack CMakeFiles/cmTC_62536.dir/CMakeCXXCompilerABI.cpp.obj -L/Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/../lib/clang-runtimes/xtensa-esp-unknown-elf/esp32s3/lib -lstdc++ -lm -lc -lnosys /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/../lib/clang-runtimes/xtensa-esp-unknown-elf/esp32s3/lib/libclang_rt.builtins.a
         /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/xtensa-esp32s3-elf-clang-ld: warning: cannot find entry symbol _start; defaulting to 00400094
         
       exitCode: 0
@@ -3563,16 +3646,16 @@ events:
       Parsed CXX implicit link information:
         link line regex: [^( *|.*[/\\])(ld[0-9]*(|\\.[a-rt-z][a-z]*|\\.s[a-np-z][a-z]*|\\.so[a-z]+)|CMAKE_LINK_STARTFILE-NOTFOUND|([^/\\]+-)?ld|collect2)[^/\\]*( |$)]
         linker tool regex: [^[ 	]*(->|")?[ 	]*(([^"]*[/\\])?(ld[0-9]*(|\\.[a-rt-z][a-z]*|\\.s[a-np-z][a-z]*|\\.so[a-z]+)))("|,| |$)]
-        ignore line: [Change Dir: '/Users/geertroumen/Code/Git/esp-wasm/toolchain/sysroot-project/build-usb/CMakeFiles/CMakeScratch/TryCompile-kdOPPA']
+        ignore line: [Change Dir: '/Users/geertroumen/Code/Git/esp-wasm/toolchain/sysroot-project/build-usb/CMakeFiles/CMakeScratch/TryCompile-OFdBDM']
         ignore line: []
-        ignore line: [Run Build Command(s): /opt/homebrew/bin/ninja -v cmTC_a09eb]
-        ignore line: [[1/2] /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/clang++   --target=xtensa-esp-elf -mcpu=esp32s3     -v -MD -MT CMakeFiles/cmTC_a09eb.dir/CMakeCXXCompilerABI.cpp.obj -MF CMakeFiles/cmTC_a09eb.dir/CMakeCXXCompilerABI.cpp.obj.d -o CMakeFiles/cmTC_a09eb.dir/CMakeCXXCompilerABI.cpp.obj -c /opt/homebrew/share/cmake/Modules/CMakeCXXCompilerABI.cpp]
+        ignore line: [Run Build Command(s): /opt/homebrew/bin/ninja -v cmTC_62536]
+        ignore line: [[1/2] /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/clang++   --target=xtensa-esp-elf -mcpu=esp32s3     -v -MD -MT CMakeFiles/cmTC_62536.dir/CMakeCXXCompilerABI.cpp.obj -MF CMakeFiles/cmTC_62536.dir/CMakeCXXCompilerABI.cpp.obj.d -o CMakeFiles/cmTC_62536.dir/CMakeCXXCompilerABI.cpp.obj -c /opt/homebrew/share/cmake/Modules/CMakeCXXCompilerABI.cpp]
         ignore line: [Espressif clang version 20.1.1 (https://github.com/espressif/llvm-project.git esp-20.1.1_20250829)]
         ignore line: [Target: xtensa-esp-unknown-elf]
         ignore line: [Thread model: posix]
         ignore line: [InstalledDir: /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin]
         ignore line: [ (in-process)]
-        ignore line: [ "/Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/clang-20" -cc1 -triple xtensa-esp-unknown-elf -emit-obj -disable-free -clear-ast-before-backend -disable-llvm-verifier -discard-value-names -main-file-name CMakeCXXCompilerABI.cpp -mrelocation-model static -mframe-pointer=all -fmath-errno -ffp-contract=on -fno-rounding-math -mconstructor-aliases -nostdsysteminc -target-cpu esp32s3 -target-feature +density -target-feature +fp -target-feature +windowed -target-feature +bool -target-feature +loop -target-feature +sext -target-feature +nsa -target-feature +clamps -target-feature +minmax -target-feature +mul32 -target-feature +mul32high -target-feature +div32 -target-feature +mac16 -target-feature +s32c1i -target-feature +threadptr -target-feature +atomctl -target-feature +memctl -target-feature +debug -target-feature +exception -target-feature +highpriinterrupts -target-feature +coprocessor -target-feature +interrupt -target-feature +rvector -target-feature +timerint -target-feature +prid -target-feature +regprotect -target-feature +miscsr -target-feature +esp32s3 -debugger-tuning=gdb -fdebug-compilation-dir=/Users/geertroumen/Code/Git/esp-wasm/toolchain/sysroot-project/build-usb/CMakeFiles/CMakeScratch/TryCompile-kdOPPA -target-linker-version 609 -v -fcoverage-compilation-dir=/Users/geertroumen/Code/Git/esp-wasm/toolchain/sysroot-project/build-usb/CMakeFiles/CMakeScratch/TryCompile-kdOPPA -resource-dir /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/lib/clang/20 -dependency-file CMakeFiles/cmTC_a09eb.dir/CMakeCXXCompilerABI.cpp.obj.d -MT CMakeFiles/cmTC_a09eb.dir/CMakeCXXCompilerABI.cpp.obj -sys-header-deps -internal-isystem /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/../lib/clang-runtimes/xtensa-esp-unknown-elf/esp32s3/include/c++/14.2.0 -internal-isystem /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/../lib/clang-runtimes/xtensa-esp-unknown-elf/include/c++/14.2.0 -internal-isystem /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/lib/clang/20/include -internal-isystem /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/../lib/clang-runtimes/xtensa-esp-unknown-elf/esp32s3/include -fdeprecated-macro -ferror-limit 19 -fno-signed-char -fgnuc-version=4.2.1 -fskip-odr-check-in-gmf -fcxx-exceptions -fexceptions -faddrsig -D__GCC_HAVE_DWARF2_CFI_ASM=1 -o CMakeFiles/cmTC_a09eb.dir/CMakeCXXCompilerABI.cpp.obj -x c++ /opt/homebrew/share/cmake/Modules/CMakeCXXCompilerABI.cpp]
+        ignore line: [ "/Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/clang-20" -cc1 -triple xtensa-esp-unknown-elf -emit-obj -disable-free -clear-ast-before-backend -disable-llvm-verifier -discard-value-names -main-file-name CMakeCXXCompilerABI.cpp -mrelocation-model static -mframe-pointer=all -fmath-errno -ffp-contract=on -fno-rounding-math -mconstructor-aliases -nostdsysteminc -target-cpu esp32s3 -target-feature +density -target-feature +fp -target-feature +windowed -target-feature +bool -target-feature +loop -target-feature +sext -target-feature +nsa -target-feature +clamps -target-feature +minmax -target-feature +mul32 -target-feature +mul32high -target-feature +div32 -target-feature +mac16 -target-feature +s32c1i -target-feature +threadptr -target-feature +atomctl -target-feature +memctl -target-feature +debug -target-feature +exception -target-feature +highpriinterrupts -target-feature +coprocessor -target-feature +interrupt -target-feature +rvector -target-feature +timerint -target-feature +prid -target-feature +regprotect -target-feature +miscsr -target-feature +esp32s3 -debugger-tuning=gdb -fdebug-compilation-dir=/Users/geertroumen/Code/Git/esp-wasm/toolchain/sysroot-project/build-usb/CMakeFiles/CMakeScratch/TryCompile-OFdBDM -target-linker-version 609 -v -fcoverage-compilation-dir=/Users/geertroumen/Code/Git/esp-wasm/toolchain/sysroot-project/build-usb/CMakeFiles/CMakeScratch/TryCompile-OFdBDM -resource-dir /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/lib/clang/20 -dependency-file CMakeFiles/cmTC_62536.dir/CMakeCXXCompilerABI.cpp.obj.d -MT CMakeFiles/cmTC_62536.dir/CMakeCXXCompilerABI.cpp.obj -sys-header-deps -internal-isystem /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/../lib/clang-runtimes/xtensa-esp-unknown-elf/esp32s3/include/c++/14.2.0 -internal-isystem /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/../lib/clang-runtimes/xtensa-esp-unknown-elf/include/c++/14.2.0 -internal-isystem /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/lib/clang/20/include -internal-isystem /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/../lib/clang-runtimes/xtensa-esp-unknown-elf/esp32s3/include -fdeprecated-macro -ferror-limit 19 -fno-signed-char -fgnuc-version=4.2.1 -fskip-odr-check-in-gmf -fcxx-exceptions -fexceptions -faddrsig -D__GCC_HAVE_DWARF2_CFI_ASM=1 -o CMakeFiles/cmTC_62536.dir/CMakeCXXCompilerABI.cpp.obj -x c++ /opt/homebrew/share/cmake/Modules/CMakeCXXCompilerABI.cpp]
         ignore line: [clang -cc1 version 20.1.1 based upon LLVM 20.1.1 default target riscv32-esp-elf]
         ignore line: [ignoring duplicate directory "/Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/lib/clang/20/include"]
         ignore line: [#include "..." search starts here:]
@@ -3582,18 +3665,18 @@ events:
         ignore line: [ /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/lib/clang/20/include]
         ignore line: [ /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/../lib/clang-runtimes/xtensa-esp-unknown-elf/esp32s3/include]
         ignore line: [End of search list.]
-        ignore line: [[2/2] : && /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/clang++ --target=xtensa-esp-elf -mcpu=esp32s3 -nostartfiles --ld-path=xtensa-esp32s3-elf-clang-ld -z noexecstack  -v CMakeFiles/cmTC_a09eb.dir/CMakeCXXCompilerABI.cpp.obj -o cmTC_a09eb   && :]
+        ignore line: [[2/2] : && /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/clang++ --target=xtensa-esp-elf -mcpu=esp32s3 -nostartfiles --ld-path=xtensa-esp32s3-elf-clang-ld -z noexecstack  -v CMakeFiles/cmTC_62536.dir/CMakeCXXCompilerABI.cpp.obj -o cmTC_62536   && :]
         ignore line: [Espressif clang version 20.1.1 (https://github.com/espressif/llvm-project.git esp-20.1.1_20250829)]
         ignore line: [Target: xtensa-esp-unknown-elf]
         ignore line: [Thread model: posix]
         ignore line: [InstalledDir: /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin]
-        link line: [ "/Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/xtensa-esp32s3-elf-clang-ld" -o cmTC_a09eb -X -z noexecstack CMakeFiles/cmTC_a09eb.dir/CMakeCXXCompilerABI.cpp.obj -L/Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/../lib/clang-runtimes/xtensa-esp-unknown-elf/esp32s3/lib -lstdc++ -lm -lc -lnosys /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/../lib/clang-runtimes/xtensa-esp-unknown-elf/esp32s3/lib/libclang_rt.builtins.a]
+        link line: [ "/Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/xtensa-esp32s3-elf-clang-ld" -o cmTC_62536 -X -z noexecstack CMakeFiles/cmTC_62536.dir/CMakeCXXCompilerABI.cpp.obj -L/Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/../lib/clang-runtimes/xtensa-esp-unknown-elf/esp32s3/lib -lstdc++ -lm -lc -lnosys /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/../lib/clang-runtimes/xtensa-esp-unknown-elf/esp32s3/lib/libclang_rt.builtins.a]
           arg [/Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/xtensa-esp32s3-elf-clang-ld] ==> ignore
           arg [-o] ==> ignore
-          arg [cmTC_a09eb] ==> ignore
+          arg [cmTC_62536] ==> ignore
           arg [-X] ==> ignore
           arg [-znoexecstack] ==> ignore
-          arg [CMakeFiles/cmTC_a09eb.dir/CMakeCXXCompilerABI.cpp.obj] ==> ignore
+          arg [CMakeFiles/cmTC_62536.dir/CMakeCXXCompilerABI.cpp.obj] ==> ignore
           arg [-L/Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/../lib/clang-runtimes/xtensa-esp-unknown-elf/esp32s3/lib] ==> dir [/Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/../lib/clang-runtimes/xtensa-esp-unknown-elf/esp32s3/lib]
           arg [-lstdc++] ==> lib [stdc++]
           arg [-lm] ==> lib [m]
@@ -3621,8 +3704,8 @@ events:
       - "/opt/homebrew/share/cmake/Modules/FindThreads.cmake:163 (_threads_check_libc)"
       - "/Users/geertroumen/Code/Git/esp-wasm/toolchain/out/esp-idf/components/mbedtls/mbedtls/CMakeLists.txt:127 (find_package)"
     directories:
-      source: "/Users/geertroumen/Code/Git/esp-wasm/toolchain/sysroot-project/build-usb/CMakeFiles/CMakeScratch/TryCompile-UYQGaA"
-      binary: "/Users/geertroumen/Code/Git/esp-wasm/toolchain/sysroot-project/build-usb/CMakeFiles/CMakeScratch/TryCompile-UYQGaA"
+      source: "/Users/geertroumen/Code/Git/esp-wasm/toolchain/sysroot-project/build-usb/CMakeFiles/CMakeScratch/TryCompile-gCKJ7M"
+      binary: "/Users/geertroumen/Code/Git/esp-wasm/toolchain/sysroot-project/build-usb/CMakeFiles/CMakeScratch/TryCompile-gCKJ7M"
     cmakeVariables:
       CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS: "CMAKE_CXX_COMPILER_CLANG_SCAN_DEPS-NOTFOUND"
       CMAKE_C_FLAGS: "--target=xtensa-esp-elf -mcpu=esp32s3 "
@@ -3633,17 +3716,17 @@ events:
       variable: "CMAKE_HAVE_LIBC_PTHREAD"
       cached: true
       stdout: |
-        Change Dir: '/Users/geertroumen/Code/Git/esp-wasm/toolchain/sysroot-project/build-usb/CMakeFiles/CMakeScratch/TryCompile-UYQGaA'
+        Change Dir: '/Users/geertroumen/Code/Git/esp-wasm/toolchain/sysroot-project/build-usb/CMakeFiles/CMakeScratch/TryCompile-gCKJ7M'
         
-        Run Build Command(s): /opt/homebrew/bin/ninja -v cmTC_5b7d4
-        [1/2] /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/clang -DCMAKE_HAVE_LIBC_PTHREAD  --target=xtensa-esp-elf -mcpu=esp32s3 -MD -MT CMakeFiles/cmTC_5b7d4.dir/src.c.obj -MF CMakeFiles/cmTC_5b7d4.dir/src.c.obj.d -o CMakeFiles/cmTC_5b7d4.dir/src.c.obj -c /Users/geertroumen/Code/Git/esp-wasm/toolchain/sysroot-project/build-usb/CMakeFiles/CMakeScratch/TryCompile-UYQGaA/src.c
-        [2/2] : && /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/clang --target=xtensa-esp-elf -mcpu=esp32s3 -nostartfiles --ld-path=xtensa-esp32s3-elf-clang-ld -z noexecstack CMakeFiles/cmTC_5b7d4.dir/src.c.obj -o cmTC_5b7d4   && :
-        /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/xtensa-esp32s3-elf-clang-ld: CMakeFiles/cmTC_5b7d4.dir/src.c.obj:(.literal+0x14): warning: pthread_atfork is not implemented and will always fail
-        /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/xtensa-esp32s3-elf-clang-ld: CMakeFiles/cmTC_5b7d4.dir/src.c.obj:(.literal+0xc): warning: pthread_cancel is not implemented and will always fail
-        /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/xtensa-esp32s3-elf-clang-ld: CMakeFiles/cmTC_5b7d4.dir/src.c.obj:(.literal+0x4): warning: pthread_create is not implemented and will always fail
-        /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/xtensa-esp32s3-elf-clang-ld: CMakeFiles/cmTC_5b7d4.dir/src.c.obj:(.literal+0x8): warning: pthread_detach is not implemented and will always fail
-        /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/xtensa-esp32s3-elf-clang-ld: CMakeFiles/cmTC_5b7d4.dir/src.c.obj:(.literal+0x18): warning: pthread_exit is not implemented and will always fail
-        /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/xtensa-esp32s3-elf-clang-ld: CMakeFiles/cmTC_5b7d4.dir/src.c.obj:(.literal+0x10): warning: pthread_join is not implemented and will always fail
+        Run Build Command(s): /opt/homebrew/bin/ninja -v cmTC_56642
+        [1/2] /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/clang -DCMAKE_HAVE_LIBC_PTHREAD  --target=xtensa-esp-elf -mcpu=esp32s3 -MD -MT CMakeFiles/cmTC_56642.dir/src.c.obj -MF CMakeFiles/cmTC_56642.dir/src.c.obj.d -o CMakeFiles/cmTC_56642.dir/src.c.obj -c /Users/geertroumen/Code/Git/esp-wasm/toolchain/sysroot-project/build-usb/CMakeFiles/CMakeScratch/TryCompile-gCKJ7M/src.c
+        [2/2] : && /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/clang --target=xtensa-esp-elf -mcpu=esp32s3 -nostartfiles --ld-path=xtensa-esp32s3-elf-clang-ld -z noexecstack CMakeFiles/cmTC_56642.dir/src.c.obj -o cmTC_56642   && :
+        /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/xtensa-esp32s3-elf-clang-ld: CMakeFiles/cmTC_56642.dir/src.c.obj:(.literal+0x14): warning: pthread_atfork is not implemented and will always fail
+        /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/xtensa-esp32s3-elf-clang-ld: CMakeFiles/cmTC_56642.dir/src.c.obj:(.literal+0xc): warning: pthread_cancel is not implemented and will always fail
+        /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/xtensa-esp32s3-elf-clang-ld: CMakeFiles/cmTC_56642.dir/src.c.obj:(.literal+0x4): warning: pthread_create is not implemented and will always fail
+        /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/xtensa-esp32s3-elf-clang-ld: CMakeFiles/cmTC_56642.dir/src.c.obj:(.literal+0x8): warning: pthread_detach is not implemented and will always fail
+        /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/xtensa-esp32s3-elf-clang-ld: CMakeFiles/cmTC_56642.dir/src.c.obj:(.literal+0x18): warning: pthread_exit is not implemented and will always fail
+        /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/xtensa-esp32s3-elf-clang-ld: CMakeFiles/cmTC_56642.dir/src.c.obj:(.literal+0x10): warning: pthread_join is not implemented and will always fail
         /Users/geertroumen/Code/Git/esp-wasm/toolchain/out/espressif/tools/esp-clang/esp-20.1.1_20250829/esp-clang/bin/xtensa-esp32s3-elf-clang-ld: warning: cannot find entry symbol _start; defaulting to 00400074
         
       exitCode: 0
