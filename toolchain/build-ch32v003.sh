@@ -21,7 +21,7 @@ CH32FUN_REF="${CH32FUN_REF:-b28d285460ce052a179dba8f4a22c6f73ff8e328}"
 SRC="$HERE/out/ch32fun"
 STAGE="$HERE/out/stage-ch32v003"
 CLANG_RESOURCE="${CLANG_RESOURCE:-$HERE/out/stage-wasm/clang-resource/include}"
-ARDUINO_CH32_REF="${ARDUINO_CH32_REF:-078b89648a96112b47e70b18cca729fc3fb1feed}"
+ARDUINO_CH32_REF="${ARDUINO_CH32_REF:-65d902038aafff6bd2e2322828fa055bcb5704e9}"
 ARDUINO_CH32="$HERE/out/arduino_core_ch32"
 # WCH's GCC 15.2, as listed in WCH's Arduino board index (package_ch32v_index.json).
 WCH_GCC="$HERE/out/wch-gcc/riscv-wch-gcc"
