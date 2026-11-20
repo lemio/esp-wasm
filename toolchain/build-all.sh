@@ -37,7 +37,7 @@ done
 IDF_VER="$(git -C "${IDF_PATH:-$HERE/out/esp-idf}" describe --tags 2>/dev/null || echo idf)"
 cat > "$OUT/manifest.json" <<JSON
 {
-  "version": "202611141634-v6.0.3",
+  "version": "$(date -u +%Y%m%d%H%M)-$IDF_VER",
   "tools": {
     "clang": { "url": "llvm.wasm", "argv0": "clang" },
     "ld": { "url": "ld.wasm", "argv0": "ld" }
