@@ -2,6 +2,7 @@ import "./styles.css";
 import { CompileError, CompilerClient } from "./compiler/client";
 import { CH32_FLASH_SIZE } from "./compiler/ch32v003";
 import type { FlashPart } from "./compiler/types";
+import { setArduinoTarget } from "./editor/arduino-completions";
 import { ARDUINO_SOURCE, CH32V003_ARDUINO_SOURCE, CH32V003_SOURCE, IDF_SOURCE } from "./editor/default-sketch";
 import {
   type TextModel, createEditor, disposeModel, fileModel, languageFor, setDiagnostics,
@@ -183,6 +184,7 @@ function setMode(m: Mode) {
   show(projectFiles()[0]);
   // The CH32V003 flashes over its UART bootloader; the ESP32-S3's trace, inspector and reset don't apply.
   const ch32 = isCh32(m);
+  setArduinoTarget(m === "ch32v003-arduino" ? ch32Chip : "esp32");   // which core's names the completions and hover describe
   if (targetLabel) targetLabel.textContent = ch32 ? CH32_CHIP_NAMES[ch32Chip] : MODES[m].chip;
   selectCh32Chip.hidden = !ch32;
   selectCh32Chip.value = ch32Chip;

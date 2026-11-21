@@ -7,7 +7,7 @@ import { registerArduinoLanguage } from "./arduino-completions";
 self.MonacoEnvironment = { getWorker: () => new EditorWorker() };
 
 export function createEditor(container: HTMLElement, options: monaco.editor.IStandaloneEditorConstructionOptions = {}) {
-  registerArduinoLanguage();   // completions, parameter hints and hover for the Arduino-ESP32 API
+  registerArduinoLanguage();   // completions, parameter hints and hover for the Arduino API (setArduinoTarget picks the core)
   return monaco.editor.create(container, {
     model: null,
     theme: "vs-dark",

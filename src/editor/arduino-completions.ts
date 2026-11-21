@@ -1,15 +1,25 @@
 /**
- * Arduino-ESP32 completions for the editor: functions (with their parameters as snippet tab stops),
+ * Arduino completions for the editor: functions (with their parameters as snippet tab stops),
  * constants, global objects and their methods (Serial., Wire., WiFi., and variables of a known class),
- * parameter hints while typing a call, and notes on hover. The API is read from the sysroot's headers
- * (toolchain/arduino-api.mjs → arduino-api.json); DOCS adds plain-language notes for the common ones.
+ * parameter hints while typing a call, and notes on hover. The API is read from the headers of the
+ * project type's core (toolchain/arduino-api.mjs → arduino-api.json for Arduino-ESP32,
+ * arduino-api-<chip>.json for WCH's CH32 core); DOCS adds plain-language notes for the common ones.
+ * setArduinoTarget() switches between them.
  */
 import * as monaco from "monaco-editor";
-import API from "./arduino-api.json";
-import { DOCS } from "./arduino-docs";
+import API_ESP32 from "./arduino-api.json";
+import API_CH32V003 from "./arduino-api-ch32v003.json";
+import API_CH32X035 from "./arduino-api-ch32x035.json";
+import { DOCS as DOCS_ESP32, type Doc } from "./arduino-docs";
+import { ch32Docs } from "./arduino-docs-ch32";
 
-interface Api { functions: Record<string, string[]>; constants: Record<string, string>; objects: Record<string, string>; classes: Record<string, { bases: string[]; methods: Record<string, string[]> }>; headers: Record<string, string> }
-const api = API as unknown as Api;
+interface Api { functions: Record<string, string[]>; constants: Record<string, string>; objects: Record<string, string>; classes: Record<string, { bases: string[]; methods: Record<string, string[]>; fields?: Record<string, string> }>; headers: Record<string, string> }
+export type ArduinoTarget = "esp32" | "ch32v003" | "ch32x035";
+const APIS: Record<ArduinoTarget, Api> = { esp32: API_ESP32 as unknown as Api, ch32v003: API_CH32V003 as unknown as Api, ch32x035: API_CH32X035 as unknown as Api };
+const DOCSETS: Record<ArduinoTarget, Record<string, Doc>> = { esp32: DOCS_ESP32, ch32v003: ch32Docs("ch32v003"), ch32x035: ch32Docs("ch32x035") };
+let api = APIS.esp32, DOCS = DOCSETS.esp32;
+/** Which core's API the completions, parameter hints and hover describe (the project type, and the CH32 chip). */
+export function setArduinoTarget(target: ArduinoTarget): void { api = APIS[target]; DOCS = DOCSETS[target]; }
 const K = monaco.languages.CompletionItemKind;
 
 const KEYWORDS = ["void", "int", "long", "unsigned", "float", "double", "char", "bool", "boolean", "byte", "word", "String", "uint8_t", "uint16_t", "uint32_t",
@@ -22,6 +32,14 @@ function methodsOf(cls: string, seen = new Set<string>()): [string, string[]][] 
   const own = Object.entries(c.methods);
   const names = new Set(own.map(([n]) => n));
   return [...own, ...c.bases.flatMap((b) => methodsOf(b, seen)).filter(([n]) => !names.has(n) && names.add(n))];
+}
+/** Public data members of a class or struct (capability.minVoltage), its own first, then inherited ones. */
+function fieldsOf(cls: string, seen = new Set<string>()): [string, string][] {
+  const c = api.classes[cls]; if (!c || seen.has(cls)) return [];
+  seen.add(cls);
+  const own = Object.entries(c.fields ?? {});
+  const names = new Set(own.map(([n]) => n));
+  return [...own, ...c.bases.flatMap((b) => fieldsOf(b, seen)).filter(([n]) => !names.has(n) && names.add(n))];
 }
 /** "void pinMode(uint8_t pin, uint8_t mode)" → ["uint8_t pin", "uint8_t mode"] */
 function paramsOf(sig: string): string[] {
@@ -47,6 +65,16 @@ const docFor = (key: string): monaco.IMarkdownString | undefined => {
 };
 const sigsFor = (name: string): string[] => DOCS[name]?.sig ? [DOCS[name].sig!] : api.functions[name] ?? [];
 
+/** Print and Stream are what Serial's methods come from: print(), println(), read()… */
+function isStream(cls: string | undefined, seen = new Set<string>()): boolean {
+  if (!cls || seen.has(cls)) return false;
+  seen.add(cls);
+  return cls === "Print" || cls === "Stream" || (api.classes[cls]?.bases ?? []).some((b) => isStream(b, seen));
+}
+/** The docs of obj.name: its own, else Serial's for the other serial-like objects (Serial1, SerialUSB…) but not for Wire or USBPD. */
+const objDocKey = (obj: string, name: string, cls: string | undefined) =>
+  DOCS[`${obj}.${name}`] || !isStream(cls) ? `${obj}.${name}` : `Serial.${name}`;
+
 /** The class of a name: a global object (Serial), or a variable declared in the sketch with a known class (String s; WiFiClient c;). */
 function classOf(model: monaco.editor.ITextModel, name: string): string | undefined {
   if (api.objects[name]) return api.objects[name];
@@ -70,16 +98,19 @@ export function registerArduinoLanguage(): void {
       if (member) {
         const cls = classOf(model, member[1]);
         if (!cls) return { suggestions: [] };
-        return { suggestions: methodsOf(cls).map(([name, all], i) => {
-          const doc = DOCS[`${member[1]}.${name}`] ?? DOCS[`Serial.${name}`];
+        const fields = fieldsOf(cls).map(([name, type], i): monaco.languages.CompletionItem => ({
+          label: { label: name, description: type }, kind: K.Field, insertText: name, detail: `${type} ${name}`,
+          documentation: docFor(`${member[1]}.${name}`) ?? docFor(`${cls}.${name}`), sortText: `0${String(i).padStart(3, "0")}`, range }));
+        return { suggestions: [...fields, ...methodsOf(cls).map(([name, all], i) => {
+          const key = objDocKey(member[1], name, cls), doc = DOCS[key];
           const sigs = [...all].sort((a, b) => Number(/__FlashStringHelper|std::/.test(a)) - Number(/__FlashStringHelper|std::/.test(b)));
           const shown = doc?.sig ?? sigs[0];
           return {
           label: { label: name, description: shown.slice(shown.indexOf("(")) },
           kind: K.Method, insertText: snippet(name, shown), insertTextRules: monaco.languages.CompletionItemInsertTextRule.InsertAsSnippet,
-          detail: sigs.join("\n"), documentation: docFor(`${member[1]}.${name}`) ?? docFor(`Serial.${name}`),
+          detail: sigs.join("\n"), documentation: docFor(key),
           sortText: `${doc ? 0 : 1}${String(i).padStart(3, "0")}`, range,
-        }; }) };
+        }; })] };
       }
       if (/(^|[^\w])#\s*include\s*[<"]?[\w./]*$/.test(line)) return { suggestions: [] };
       const out: monaco.languages.CompletionItem[] = [];
@@ -125,7 +156,7 @@ export function registerArduinoLanguage(): void {
       const cls = obj && classOf(model, obj);
       const sigs = cls ? (methodsOf(cls).find(([n]) => n === fn)?.[1] ?? []) : sigsFor(fn);
       if (!sigs.length) return null;
-      const docKey = obj ? `${obj}.${fn}` : fn;
+      const docKey = obj ? objDocKey(obj, fn, cls || undefined) : fn;
       return {
         value: {
           signatures: sigs.map((sig) => ({ label: sig, documentation: docFor(docKey), parameters: paramsOf(sig).map((p) => ({ label: p })) })),
@@ -148,7 +179,9 @@ export function registerArduinoLanguage(): void {
       const sigs = cls ? (methodsOf(cls).find(([n]) => n === w.word)?.[1] ?? []) : sigsFor(w.word);
       const raw = !obj ? api.constants[w.word] : undefined;
       const value = raw != null && raw !== w.word ? `${w.word} = ${raw}` : undefined;   // not "LED_BUILTIN = LED_BUILTIN"
-      const d = DOCS[key] ?? (obj ? DOCS[`Serial.${w.word}`] : undefined), doc = docFor(key) ?? (obj ? docFor(`Serial.${w.word}`) : undefined);
+      const docKey = obj ? objDocKey(obj, w.word, cls || undefined) : key, d = DOCS[docKey], doc = docFor(docKey);
+      const field = cls ? fieldsOf(cls).find(([n]) => n === w.word)?.[1] : undefined;
+      if (field && !sigs.length) return { range: new monaco.Range(position.lineNumber, w.startColumn, position.lineNumber, w.endColumn), contents: [{ value: "```cpp\n" + `${field} ${w.word}` + "\n```" }, ...[docFor(`${cls}.${w.word}`) ?? doc].filter((x): x is monaco.IMarkdownString => !!x)] };
       if (!sigs.length && !doc && !value && !api.objects[w.word]) return null;
       const contents: monaco.IMarkdownString[] = [];
       // the documented form, or the first few overloads
