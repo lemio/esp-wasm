@@ -1,7 +1,7 @@
 {
     "version":            "1.3",
     "project_name":       "esp_wasm_sysroot",
-    "project_version":    "toolchain-202611061302-v6.0.3-4-g14cc39c-dirty",
+    "project_version":    "toolchain-202611141634-v6.0.3-2-g1f75a4d-dirty",
     "project_path":       "/Users/geertroumen/Code/Git/esp-wasm/toolchain/sysroot-project",
     "idf_path":           "/Users/geertroumen/Code/Git/esp-wasm/toolchain/out/esp-idf",
     "build_dir":          "/Users/geertroumen/Code/Git/esp-wasm/toolchain/sysroot-project/build-usb",
