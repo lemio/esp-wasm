@@ -11,6 +11,7 @@ import { FLASH_OFFSETS } from "./image/flash-layout";
 import { Flasher, isWebSerialSupported } from "./flasher/flasher";
 import { SerialMonitor } from "./flasher/monitor";
 import { Ch32Iap } from "./flasher/ch32-iap";
+import { WchIsp, isWchIspSupported } from "./flasher/wch-isp";
 import { FunprogHid, webHidSupported } from "./flasher/funprog-hid";
 import { type Ch32Program, Ch32Target } from "./debug/ch32-target";
 import { ch32v003 } from "./debug/jtag/chip-ch32v003";
@@ -197,14 +198,23 @@ function setMode(m: Mode) {
   // The CH32X035 flashes through the funprog programmer (SWIO, on its DIO/DCK pins); the UART
   // bootloader route is the CH32V003's, and so is the inspector.
   const x035 = ch32 && ch32Chip === "ch32x035";
+  // The CH32X035 can also be flashed over its own USB port, through its ROM bootloader (BOOT held); the V003 has no USB.
   const iapOption = selectCh32Via.querySelector<HTMLOptionElement>('option[value="iap"]');
+  const usbOption = selectCh32Via.querySelector<HTMLOptionElement>('option[value="usb"]');
   if (iapOption) iapOption.disabled = x035;
-  if (x035) selectCh32Via.value = "funprog";
+  if (usbOption) usbOption.disabled = !x035;
+  if (x035 && selectCh32Via.value === "iap") selectCh32Via.value = "funprog";
+  if (!x035 && selectCh32Via.value === "usb") selectCh32Via.value = "iap";
+  // Over USB the program has no SWIO connection to print through: Serial is the USB port then.
+  selectCh32Serial.disabled = selectCh32Via.value === "usb";
+  if (selectCh32Via.value === "usb") selectCh32Serial.value = "usb";
   btnFlash.title = !ch32
     ? "Compile, put the chip in download mode, flash and reset"
     : selectCh32Via.value === "funprog"
       ? "Compile and flash over SWIO with a funprog programmer (e.g. an ESP32-S3 running the funprog example), with WebHID"
-      : "Compile and flash over the board's USB-serial port (needs WCH's USART IAP bootloader on the chip)";
+      : selectCh32Via.value === "usb"
+        ? "Compile and flash over the board's USB port, through its ROM bootloader (hold BOOT while plugging it in), with WebUSB"
+        : "Compile and flash over the board's USB-serial port (needs WCH's USART IAP bootloader on the chip)";
   for (const el of [chkTrace.closest("label"), btnReset]) if (el) (el as HTMLElement).hidden = ch32;
   // Inspect: the ESP32-S3's inspector over USB-JTAG, or either CH32's over SWIO.
   btnJtag.disabled = ch32 ? !webHidSupported() : !isWebUsbSupported();
@@ -232,7 +242,10 @@ selectCh32Serial.onchange = () => {
   if (isUsbSerialProject()) void openUsbSerial(0);
   else if (usbSerialOpen) void monitor.stop();
 };
-const savedCh32Via = () => (storage.get("esp-wasm:ch32-via") === "funprog" ? "funprog" : "iap");
+const savedCh32Via = () => {
+  const v = storage.get("esp-wasm:ch32-via");
+  return v === "funprog" || v === "usb" ? v : "iap";
+};
 selectCh32Via.value = savedCh32Via();
 setMode(mode);
 selectMode.onchange = () => setMode(selectMode.value as Mode);
@@ -245,7 +258,7 @@ function setCh32Chip(chip: Ch32ChipId) {
   if (chip !== ch32Chip && previous?.connected) void previous.release();
   ch32Chip = chip;
   storage.set("esp-wasm:ch32-chip", chip);
-  if (chip === "ch32v003") selectCh32Via.value = savedCh32Via();
+  selectCh32Via.value = chip === "ch32v003" ? savedCh32Via() : savedCh32Via() === "usb" ? "usb" : "funprog";
   setMode(mode);
 }
 selectCh32Chip.onchange = () => setCh32Chip(selectCh32Chip.value as Ch32ChipId);
@@ -567,7 +580,7 @@ async function build(retry?: () => void): Promise<FlashPart[] | undefined> {
       const built = sourceTexts();
       // With the inspector open, the code is built for it: unoptimized, so every local variable can be read.
       const debugInfo = selectedCh32Inspector()?.visible ?? false;
-      const result = await compiler.build(files.map((f) => ({ path: f.path, content: f.model.getValue() })), { target: "ch32v003", framework: mode === "ch32v003-arduino" ? "arduino" : "ch32fun", chip: ch32Chip, debugInfo, usbSerial: isUsbSerialProject(), serialOverSwio: ch32Chip === "ch32x035" || selectCh32Via.value === "funprog" });
+      const result = await compiler.build(files.map((f) => ({ path: f.path, content: f.model.getValue() })), { target: "ch32v003", framework: mode === "ch32v003-arduino" ? "arduino" : "ch32fun", chip: ch32Chip, debugInfo, usbSerial: isUsbSerialProject(), serialOverSwio: (ch32Chip === "ch32x035" || selectCh32Via.value === "funprog") && selectCh32Via.value !== "usb" });
       for (const f of files) setDiagnostics(f.model, result.diagnostics, f.path);
       ch32Built[ch32Chip] = { chip: ch32Chip, sources: sourcesKey(), lineTable: result.lineTable, elf: result.elf, image: result.parts[0].data, texts: built };
       out.log(`Build OK in ${(result.durationMs / 1000).toFixed(1)}s, app.bin ${result.parts[0].data.length} bytes (${CH32_CHIP_NAMES[ch32Chip]})${debugInfo ? ", with debug info for the inspector" : ""}`, "ok");
@@ -709,6 +722,7 @@ function downloadLinks(parts: FlashPart[], chip: Ch32ChipId) {
  */
 let ch32Port: SerialPort | undefined;
 async function flashCh32() {
+  if (ch32Chip === "ch32x035" && selectCh32Via.value === "usb") return flashCh32Usb();
   if (ch32Chip === "ch32x035" || selectCh32Via.value === "funprog") return flashCh32Funprog();
   try {
     const known = await navigator.serial.getPorts();
@@ -754,6 +768,49 @@ async function flashCh32() {
  * e.g. the ESP32-S3 example funprog › CH32V003_Programmer) with WebHID: what
  * minichlink -w does. Needs no bootloader on the chip.
  */
+/**
+ * CH32X035 over its USB port: its ROM bootloader (WCH ISP over WebUSB, src/flasher/wch-isp.ts). The chip has
+ * to be in the bootloader already (BOOT held while it's plugged in, or while RESET is tapped).
+ */
+async function flashCh32Usb() {
+  if (!isWchIspSupported()) {
+    out.log("This browser has no WebUSB, so it can't flash over USB. Use Chrome or Edge.", "error");
+    return;
+  }
+  let isp: WchIsp;
+  try {
+    // Pick the device first: Chrome only shows the picker during the click.
+    setStatus("Select the CH32X035 in its USB bootloader…");
+    isp = await WchIsp.pick((t) => out.log(t, "muted"));
+  } catch (e) {
+    out.log(`No bootloader device selected: ${(e as Error).message}. Hold BOOT on the board while plugging in its USB cable ` +
+      "(or while tapping RESET), then click Flash again; it shows up as a WCH ISP device.", "error");
+    setStatus("Idle");
+    return;
+  }
+  const parts = await build(() => btnFlash.click());
+  if (!parts) return;
+  downloadLinks(parts, ch32Chip);
+  // Nothing else may hold the chip or its port while it's flashed (and the program restarts as a new USB device).
+  await selectedCh32Inspector()?.release();
+  if (usbSerialOpen) await monitor.stop();
+  try {
+    await isp.open();
+    setStatus(`Connecting to the ${CH32_CHIP_NAMES[ch32Chip]}…`);
+    await isp.flash(parts[0].data, (pct, stage) => setStatus(`${stage}: ${pct}%`));
+    await isp.run();
+    out.log(`Flashed ${parts[0].data.length} bytes over USB and started the program. (To flash again, put it back in its bootloader: BOOT held.)`, "ok");
+    setStatus("Flashed: running");
+  } catch (e) {
+    out.log(`Flash failed: ${(e as Error).message}`, "error");
+    setStatus("Flash failed");
+    return;
+  } finally {
+    await isp.close();
+  }
+  if (isUsbSerialProject()) await openUsbSerial(8000);
+}
+
 async function flashCh32Funprog() {
   let prog: FunprogHid;
   try {
@@ -801,7 +858,7 @@ async function flashCh32Funprog() {
 const CH32X035_CDC = { usbVendorId: 0x1a86, usbProductId: 0xfe0c };
 /** A CH32X035 Arduino project whose Serial is the USB port. */
 function isUsbSerialProject(): boolean {
-  return mode === "ch32v003-arduino" && ch32Chip === "ch32x035" && selectCh32Serial.value === "usb";
+  return mode === "ch32v003-arduino" && ch32Chip === "ch32x035" && (selectCh32Serial.value === "usb" || selectCh32Via.value === "usb");
 }
 
 /** The board's USB serial port, when this page was allowed to use it before; waits `waitMs` for it to appear. */
@@ -1008,7 +1065,10 @@ refreshButtons();
 void restoreBuild();
 // After a reload: the serial monitor was on, so turn it back on, if the port can be had without
 // asking (the one this page was allowed before). Opening it leaves the chip running.
-if (storage.get(MONITOR_KEY) && "serial" in navigator) {
+// A CH32 with Serial on its USB port: that port again (the ESP32 restore below would open it the wrong way:
+// it releases DTR, and the board then drops what it prints).
+if (isUsbSerialProject()) void openUsbSerial(0);
+else if (storage.get(MONITOR_KEY) && !isCh32() && "serial" in navigator) {
   void navigator.serial.getPorts().then((ports) => {
     if (ports.length !== 1 || monitor.running) return;
     return exclusive(async () => {
