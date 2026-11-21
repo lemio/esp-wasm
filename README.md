@@ -155,8 +155,12 @@ the X035 yet. The UART bootloader route is for the CH32V003.
 Or pick **CH32 (Arduino)** for sketches (`setup()`/`loop()`) with
 [WCH's Arduino core](https://github.com/openwch/arduino_core_ch32) (mostly LGPL-2.1, like Arduino's cores; WCH's HAL files BSD),
 for the CH32V003F4 at 48 MHz (its board defaults): `pinMode`, `digitalWrite`,
-`analogRead`, `Serial` (USART1: TX PD5, RX PD6), `millis`, and its Wire, SPI and
-EEPROM libraries. Flashing and the rest work as for ch32fun programs below.
+`analogRead`, `Serial`, `millis`, and its Wire, SPI and EEPROM libraries. Flashing and the
+rest work as for ch32fun programs below. **`Serial`** depends on how it's flashed: over SWIO (a funprog
+programmer, and always for the CH32X035) it prints through the debug connection into the Output
+panel, with no adapter or extra wires (the baud rate is ignored and nothing can be read from
+it); over the USB-serial bootloader it's USART1 (TX PD5, RX PD6). `Serial1` is always the
+chip's UART (USART1: PB10/PB11 on the CH32X035).
 
 - **Precompiled:** the core, WCH's HAL, the CH32V003F4 variant and the three
   libraries are compiled once by `toolchain/scripts/collect_ch32_arduino.py`

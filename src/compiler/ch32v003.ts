@@ -8,6 +8,7 @@
 import { buildLineTable } from "../debug/line-table";
 import { PT_LOAD, parseElf } from "../image/elf";
 import { BuildError, parseDiagnostics } from "./diagnostics";
+import { SDI_SERIAL_HEADER } from "./ch32-sdi-serial";
 import { addPrototypes } from "./prototypes";
 import type { Toolchain } from "./toolchain";
 import type { BuildOptions, BuildResult, Ch32Chip, Diagnostic, LogLevel, SourceFile } from "./types";
@@ -98,6 +99,9 @@ export async function buildCh32v003(
     vfs.writeFile(`src/${s.path}`, content);
   }
 
+  // Serial over the SWIO connection: a header, included into the user's files after Arduino.h.
+  const sdiSerial = arduino && !!options.serialOverSwio;
+  if (sdiSerial) vfs.writeFile("build/sdi_serial.h", SDI_SERIAL_HEADER);
   const common = readArgs(tc, "common.txt", flags);
   // For the hardware inspector: the user's own files unoptimized, so every local variable lives in the
   // frame (at -Os the compiler drops or keeps in registers the ones it can; the inspector reads memory).
@@ -118,7 +122,7 @@ export async function buildCh32v003(
     // ch32fun.c calls the C++ constructors (__libc_init_array) when the program has C++ code.
     // A sketch is C++ with Arduino.h included first (as the Arduino IDE does).
     const lang = cxx
-      ? [...(ext === "ino" ? ["-x", "c++", "-include", "Arduino.h"] : []), ...readArgs(tc, "cxx.txt", flags)]
+      ? [...(ext === "ino" ? ["-x", "c++", "-include", "Arduino.h"] : []), ...(sdiSerial && path.startsWith("/src/") ? ["-include", "/build/sdi_serial.h"] : []), ...readArgs(tc, "cxx.txt", flags)]
       : readArgs(tc, "c.txt", flags).concat(!arduino && isCxx && path.endsWith("ch32fun.c") ? ["-DCPLUSPLUS=1"] : []);
     if (path.startsWith("/src/")) log(`CC ${path.slice(5)}`, "muted");
     const obj = `/build/${i}.o`;

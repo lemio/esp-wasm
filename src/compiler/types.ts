@@ -22,6 +22,11 @@ export interface BuildOptions {
    * instrumentation (it reads everything from the chip). Takes precedence over `trace`.
    */
   debugInfo?: boolean;
+  /**
+   * CH32 Arduino sketches flashed over SWIO (a funprog programmer): `Serial` prints through the debug
+   * connection (shown in the output panel) instead of the UART; `Serial1` is still the UART.
+   */
+  serialOverSwio?: boolean;
   /** Libraries the user installed (from the PlatformIO registry), compiled with the sketch. */
   libraries?: BuildLibrary[];
   /**

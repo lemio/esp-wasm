@@ -80,7 +80,7 @@ int main()
 
 export const CH32V003_ARDUINO_SOURCE = `// Blink on a CH32V003 with WCH's Arduino core (https://github.com/openwch/arduino_core_ch32).
 // The WCH CH32V003F4P6-EVT has its LED on PD0 (change LED_PIN for your board, but not to
-// PD5/PD6: they're Serial's TX and RX, e.g. to the board's USB-serial chip).
+// PD5/PD6: they're USART1's TX and RX). Flashed over SWIO, Serial prints in the Output panel.
 #ifdef CH32X035
 #define LED_PIN PA0 // the CH32X035 has no port D
 #else
