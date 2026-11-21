@@ -11,6 +11,8 @@ export type TypeInfo =
   | { k: "ptr"; size: number; to: number }
   | {
     k: "struct"; name: string; size: number; union: boolean;
+    /** Declares a constructor (so a variable of it is initialized by it, not left as it was in memory). */
+    ctor?: boolean;
     members: { name: string; off: number; type: number; doc?: string }[];
     /** The class's own doc comment, from the source (see source-docs.ts). */
     doc?: string;
@@ -38,6 +40,8 @@ export interface VarInfo {
   func?: string;
   funcLo?: number;
   param?: boolean;
+  /** The line of the declaration (a local isn't declared yet while execution is on an earlier line). */
+  line?: number;
 }
 
 export interface DebugInfo {
@@ -55,7 +59,7 @@ const TAG_ARRAY = 0x01, TAG_CLASS = 0x02, TAG_ENUM = 0x04, TAG_PARAM = 0x05, TAG
 // Attributes
 const AT_LOCATION = 0x02, AT_NAME = 0x03, AT_BYTE_SIZE = 0x0b, AT_CONST_VALUE = 0x1c, AT_LOW_PC = 0x11, AT_HIGH_PC = 0x12,
   AT_ENCODING = 0x3e, AT_UPPER_BOUND = 0x2f, AT_COUNT = 0x37, AT_MEMBER_LOC = 0x38, AT_TYPE = 0x49, AT_ORIGIN = 0x31,
-  AT_SPEC = 0x47, AT_FRAME_BASE = 0x40;
+  AT_SPEC = 0x47, AT_FRAME_BASE = 0x40, AT_DECL_LINE = 0x3b;
 const OP_ADDR = 0x03, OP_FBREG = 0x91, OP_CALL_FRAME_CFA = 0x9c;
 /**
  * Frame bases that are the stack pointer: DW_OP_reg/breg of Xtensa's a1 (the stack pointer) or a7
@@ -237,7 +241,8 @@ export function parseDebugInfo(sections: ElfSection[], bytes: Uint8Array): Debug
             const name = c.tag === TAG_INHERITANCE ? `(base class)` : text(c, AT_NAME) ?? "";
             return { name, off, type: typeOf(c) };
           });
-        out.types[i] = { k: "struct", name, size, union: d.tag === TAG_UNION, members };
+        const ctor = !!name && d.children.some((c) => c.tag === TAG_SUBPROGRAM && text(c, AT_NAME) === name);
+        out.types[i] = { k: "struct", name, size, union: d.tag === TAG_UNION, members, ...(ctor ? { ctor } : {}) };
         break;
       }
       case TAG_ARRAY: {
@@ -317,6 +322,8 @@ export function parseDebugInfo(sections: ElfSection[], bytes: Uint8Array): Debug
     if (!name) return;
     const loc = d.attrs.get(AT_LOCATION);
     const v: VarInfo = { name, type: resolveType(d), lo: scope[0], hi: scope[1], func: func?.name, funcLo: func?.lo, param: d.tag === TAG_PARAM };
+    const line = num(d, AT_DECL_LINE) ?? (() => { const o = num(d, AT_ORIGIN) ?? num(d, AT_SPEC); return o === undefined || !dies.get(o) ? undefined : num(dies.get(o)!, AT_DECL_LINE); })();
+    if (line) v.line = line;
     if (loc instanceof Uint8Array && loc.length) {
       const r = new R(new DataView(loc.buffer, loc.byteOffset, loc.byteLength), 1);
       if (loc[0] === OP_ADDR && loc.length === 5) v.addr = r.u32();

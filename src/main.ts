@@ -546,10 +546,12 @@ async function build(retry?: () => void): Promise<FlashPart[] | undefined> {
     if (isCh32()) {
       // CH32V003 (ch32fun, or WCH's Arduino core): no installed libraries or trace hooks (ESP32-S3 only).
       const built = sourceTexts();
-      const result = await compiler.build(files.map((f) => ({ path: f.path, content: f.model.getValue() })), { target: "ch32v003", framework: mode === "ch32v003-arduino" ? "arduino" : "ch32fun", chip: ch32Chip });
+      // With the inspector open, the code is built for it: unoptimized, so every local variable can be read.
+      const debugInfo = selectedCh32Inspector()?.visible ?? false;
+      const result = await compiler.build(files.map((f) => ({ path: f.path, content: f.model.getValue() })), { target: "ch32v003", framework: mode === "ch32v003-arduino" ? "arduino" : "ch32fun", chip: ch32Chip, debugInfo });
       for (const f of files) setDiagnostics(f.model, result.diagnostics, f.path);
       ch32Built[ch32Chip] = { chip: ch32Chip, sources: sourcesKey(), lineTable: result.lineTable, elf: result.elf, image: result.parts[0].data, texts: built };
-      out.log(`Build OK in ${(result.durationMs / 1000).toFixed(1)}s, app.bin ${result.parts[0].data.length} bytes (${CH32_CHIP_NAMES[ch32Chip]})`, "ok");
+      out.log(`Build OK in ${(result.durationMs / 1000).toFixed(1)}s, app.bin ${result.parts[0].data.length} bytes (${CH32_CHIP_NAMES[ch32Chip]})${debugInfo ? ", with debug info for the inspector" : ""}`, "ok");
       setStatus("Build OK");
       return result.parts;
     }

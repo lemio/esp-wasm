@@ -99,6 +99,10 @@ export async function buildCh32v003(
   }
 
   const common = readArgs(tc, "common.txt", flags);
+  // For the hardware inspector: the user's own files unoptimized, so every local variable lives in the
+  // frame (at -Os the compiler drops or keeps in registers the ones it can; the inspector reads memory).
+  // The core and libraries stay as they are, precompiled.
+  const debugFlags = options.debugInfo ? ["-O0", "-fstandalone-debug"] : [];
   const diagnostics: Diagnostic[] = [];
   const objects: string[] = [];
   // A source another file #includes (e.g. fsusb.h ends with #include "fsusb.c") is compiled there, not on its own.
@@ -122,6 +126,7 @@ export async function buildCh32v003(
       tc.manifest.tools.clang.argv0,
       ...common,
       ...(ext === "S" ? [] : lang),
+      ...(path.startsWith("/src/") && ext !== "S" ? debugFlags : []),
       "-fno-color-diagnostics",
       "-c", path,
       "-o", obj,

@@ -43,6 +43,10 @@ interface Watch {
   scope?: string;
   /** A local that isn't in a live stack frame right now (the last value stays shown, dimmed). */
   stale?: boolean;
+  /** A local whose declaration is on a later line than where its function is executing: it has no value yet. */
+  notYet?: boolean;
+  /** A plain local, declared without a value, that nothing above the current line mentions: probably still holding what was in memory. A guess. */
+  unassigned?: boolean;
   /** Why the last read failed (a bad address, say); the other watches are still read. */
   error?: string;
   /** For an object: what its pointer members point to, read at the last stop (by member name). */
@@ -1414,14 +1418,26 @@ export class JtagInspector {
   }
 
   private async readWatchValue(t: DebugTarget, w: Watch): Promise<void> {
+    if (w.local && w.local.addr === undefined && w.local.fbreg === undefined) return;   // optimized away: nothing to read
     if (w.local && w.local.addr === undefined) {
       const frame = (await this.ensureFrames(t)).find((f) => f.cfa !== undefined && f.at >= w.local!.lo && f.at < w.local!.hi);
       if (!frame) {
         w.stale = true;
+        w.notYet = false;
         w.changed = false;
         return;
       }
       w.stale = false;
+      // Declared further down the function: whatever is in its slot now isn't its value, so don't show bytes.
+      const here = this.table && locateExact(this.table, frame.at);
+      w.notYet = !!(w.local.line && !w.local.param && here && here.line < w.local.line);
+      w.unassigned = !w.notYet && !!here && this.looksUnassigned(w.local, w.type, here);
+      if (w.notYet) {
+        w.bytes = undefined;
+        w.prev = undefined;
+        w.changed = false;
+        return;
+      }
       w.sym.addr = ((w.local.base === "sp" ? frame.sp : frame.cfa!) + w.local.fbreg!) >>> 0;
     }
     const bytes = await t.readMemory(w.sym.addr, Math.min(w.sym.size, w.type !== undefined ? MAX_TYPED_BYTES : 64));
@@ -1432,6 +1448,37 @@ export class JtagInspector {
     if (w.sym.size <= 8) w.history = [...w.history, toNumber(bytes, true)].slice(-HISTORY);
     const [was, now] = before ? [this.fmtBytes(w, before), this.fmtBytes(w, bytes)] : [];
     if (w.changed && was !== now) this.note(`${w.sym.name} changed: ${was} → ${now}`);
+  }
+
+  /** Data a variable of it holds as plain bytes: no constructor sets it up. */
+  private plainData(type: number | undefined, depth = 0): boolean {
+    const info = this.table?.info;
+    const t = info && type !== undefined && depth < 6 ? strip(info, type) : undefined;
+    if (!t) return false;
+    if (t.k === "base" || t.k === "ptr" || t.k === "enum") return true;
+    if (t.k === "array") return this.plainData(t.of, depth + 1);
+    return t.k === "struct" && !t.ctor && t.members.length > 0 && t.members.every((m) => !m.name.startsWith("(base") && this.plainData(m.type, depth + 1));
+  }
+
+  /**
+   * A guess, from the source: a local of plain data, declared without a value, whose name doesn't appear
+   * on any line between its declaration and where the function is now. Then nothing has set it yet and
+   * its bytes are whatever the stack held. (Wrong when a loop set it on an earlier pass: it only hints.)
+   */
+  private looksUnassigned(v: VarInfo, type: number | undefined, here: { file: string; line: number }): boolean {
+    if (!v.line || v.param || v.addr !== undefined || !this.plainData(type)) return false;
+    const lines = this.built.text(here.file)?.split("\n");
+    const decl = lines?.[v.line - 1];
+    if (!lines || decl === undefined) return false;
+    const code = (s: string) => s.replace(/\/\*.*?\*\//g, "").replace(/\/\/.*$/, "");
+    const name = new RegExp(`\\b${v.name.replace(/\W/g, "")}\\b`);
+    const at = code(decl).search(name);
+    if (at < 0) return false;
+    const rest = code(decl).slice(at + v.name.length);
+    if (/^\s*(\[[^\]]*\]\s*)*(=|\{|\()/.test(rest)) return false;   // initialized where it's declared
+    if (name.test(rest)) return false;                                           // used later on the same line
+    for (let l = v.line + 1; l < here.line; l++) if (name.test(code(lines[l - 1] ?? ""))) return false;
+    return true;
   }
 
   /** The struct/class a type is, when its layout is known. */
@@ -1526,6 +1573,7 @@ export class JtagInspector {
   /** What a watch shows when there's no value: why not, in plain words. */
   private noValue(w: Watch): string {
     if (w.error) return "(can't be read)";
+    if (w.notYet) return "(not declared yet)";
     if (w.local && w.local.fbreg === undefined && w.local.addr === undefined) return "(optimized away)";
     if (w.local) return "(not in use right now)";
     return this.target ? "pause to see" : "—";
@@ -1566,8 +1614,11 @@ export class JtagInspector {
     const frames = await this.ensureFrames(t);
     for (const f of frames) {
       if (f.cfa === undefined) continue;
+      // Variables the compiler left no place for (optimized away) are listed as such, but only in the
+      // user's own functions (the ones with source lines), not in optimized library code.
+      const own = !!this.table && !!functionAt(this.table, f.at);
       for (const v of info.vars) {
-        if (v.fbreg !== undefined && v.type >= 0 && f.at >= v.lo && f.at < v.hi) this.addLocal(v, true);
+        if ((v.fbreg !== undefined || (own && v.addr === undefined)) && v.type >= 0 && f.at >= v.lo && f.at < v.hi) this.addLocal(v, true);
       }
     }
   }
@@ -1856,7 +1907,8 @@ export class JtagInspector {
       value = `\`${this.fmtBytes(w, now)}\``;
       if (before && !sameBytes(before, now)) value += ` — was \`${this.fmtBytes(w, before)}\` (${delta(before, now, w.format)})`;
       if (w.stale && !this.lookingBack) value += " _(last value; its function isn't running right now)_";
-    } else value = this.target ? "_pause the program to see its value_" : "_connect to the chip to see its value_";
+      else if (w.unassigned && !this.lookingBack) value += " _(not assigned yet? nothing above this line sets it)_";
+    } else value = w?.notYet ? "_not declared yet: execution is on an earlier line_" : this.target ? "_pause the program to see its value_" : "_connect to the chip to see its value_";
     const changes = w ? this.states.filter((s, i) => i > 0 && s.values.has(w.key) && !sameBytes(s.values.get(w.key), this.states[i - 1].values.get(w.key))).length : 0;
     const where = w?.local && w.local.addr === undefined ? "local variable" : `at 0x${hex(sym.addr)}`;
     return {
@@ -2040,6 +2092,7 @@ export class JtagInspector {
       const { now, before } = this.valuesOf(w);
       const changed = !!now && !!before && !sameBytes(now, before);
       const stale = w.stale && !this.lookingBack;
+      const unassigned = !!w.unassigned && !this.lookingBack && !!now;
       const name = el("td", "jt-name");
       const st = this.structType(w.type);
       if (st) {
@@ -2055,12 +2108,12 @@ export class JtagInspector {
         line.append(toggle, w.sym.name);
         name.append(line);
       } else name.append(el("span", "", w.sym.name));
-      const kind = `${info && w.type !== undefined ? typeName(info, w.type) : `${w.sym.size} bytes`}${w.local?.func ? ` · in ${w.local.func}()` : w.scope ? ` · kept by ${w.scope}()` : ""}`;
+      const kind = `${info && w.type !== undefined ? typeName(info, w.type) : `${w.sym.size} bytes`}${w.local?.func ? ` · in ${w.local.func}()` : w.scope ? ` · kept by ${w.scope}()` : ""}${unassigned ? " · not assigned yet?" : ""}`;
       name.append(el("span", "jt-kind", kind));
       // An object reads better as its short summary; its members are one click away.
       const shown = (b: Uint8Array) => (st ? this.inlineValue(w, b) : this.fmtBytes(w, b));
-      const value = el("td", changed ? "jt-value changed" : stale || w.error ? "jt-value stale" : "jt-value", now ? shown(now) : this.noValue(w));
-      value.title = w.error ? `Couldn't read it: ${w.error}` : stale ? "Last value; its function isn't running right now" : this.lookingBack ? "Recorded value" : "Click to change the value on the chip";
+      const value = el("td", changed ? "jt-value changed" : stale || w.error || unassigned ? "jt-value stale" : "jt-value", now ? shown(now) : this.noValue(w));
+      value.title = w.error ? `Couldn't read it: ${w.error}` : unassigned ? "Not assigned yet? Nothing above this line sets it, so this is probably what the memory held before (a guess from the source)" : stale ? "Last value; its function isn't running right now" : this.lookingBack ? "Recorded value" : "Click to change the value on the chip";
       value.onclick = () => {
         if (this.lookingBack) return;
         const text = prompt(`New value for ${w.sym.name}`, w.bytes && w.sym.size <= 8 ? String(toNumber(w.bytes, true)) : "");
