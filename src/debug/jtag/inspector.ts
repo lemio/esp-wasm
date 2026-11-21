@@ -1055,6 +1055,15 @@ export class JtagInspector {
   }
 
   /**
+   * Whether pc is in the compiler's shared prologue/epilogue routines (-msave-restore: a function ends
+   * with `j __riscv_restore_N`, which reloads ra and the saved registers). Its caller can't be told
+   * from the registers there: ra still holds the last call's return address inside the function itself.
+   */
+  private inSaveRestore(pc: number): boolean {
+    return !!this.program?.funcs.some((f) => pc >= f.addr && pc < f.addr + f.size && /^__riscv_(save|restore)_\d+$/.test(f.name));
+  }
+
+  /**
    * Step to the next source line. Calls into code without line info are run through, and so
    * (for Next line) are calls made from your code; once the step has left your code (returned
    * into the framework, say), a call back into your code stops there: stepping past the end
@@ -1075,26 +1084,38 @@ export class JtagInspector {
       await this.run(async () => {
         if (this.target !== t || !this.halted) return;
         let pc = await t.readPc();
+        // Inside a save/restore routine (a few instructions): step out of it, the way the function itself ends.
+        for (let k = 0; k < 16 && this.inSaveRestore(pc); k++) {
+          await t.stepInstruction();
+          pc = await t.readPc();
+          moved = true;
+        }
         if (!functionAt(table, pc)) {
           // In system code: finish it, up to the first caller that's your code.
           this.frames = undefined;
-          const caller = (await this.ensureFrames(t)).slice(1).find((f) => functionAt(table, f.at));
+          const frames = await this.ensureFrames(t);
+          const caller = frames.slice(1).find((f) => functionAt(table, f.at));
           // Not called from your code: the CPU is running another task (often idle, while loop() sleeps in delay()).
-          const resumeAt = caller ? caller.at + 1 : this.chip.arch === "xtensa" ? await this.whereLoopResumes(t) : undefined;
-          if (resumeAt === undefined) {
+          // On a CH32 the last call of loop() is a jump (a tail call), so delay() returns to whoever called loop(),
+          // the framework's main(): run to there, and step on.
+          const resumeAt = caller ? caller.at + 1 : this.chip.arch === "xtensa" ? await this.whereLoopResumes(t) : frames[1]?.pc;
+          const inMain = this.program?.funcs.some((f) => pc >= f.addr && pc < f.addr + f.size && f.name === "main");
+          if (resumeAt === undefined && !inMain) {
             note = this.chip.arch === "xtensa"
               ? "The CPU is running system code (another task), and it isn't clear where your code continues. Set a breakpoint in your code and press Continue."
               : "The CPU is in code without source, and its caller couldn't be found. Set a breakpoint in your code and press Continue.";
             reason = "it's in system code";
             return;
           }
-          const result = await this.runTo(t, resumeAt);
-          reason = result === "reached" ? "it came back to your code" : result;
-          moved = true;
-          // Back mid-line, where the code has no line of its own (line 0, compiler-made): step on
-          // to the next line of your code.
-          pc = await t.readPc();
-          if (result !== "reached" || locateExact(table, pc) || !functionAt(table, pc)) return;
+          if (resumeAt !== undefined) {
+            const result = await this.runTo(t, resumeAt);
+            reason = result === "reached" ? (caller ? "it came back to your code" : "it returned to the framework") : result;
+            moved = true;
+            // Back mid-line, where the code has no line of its own (line 0, compiler-made): step on
+            // to the next line of your code. Back in the framework (main()): step on to your next line.
+            pc = await t.readPc();
+            if (result !== "reached" || locateExact(table, pc) || (caller && !functionAt(table, pc))) return;
+          }
         }
         const start = locateExact(table, pc);
         moved = true;
@@ -1120,13 +1141,19 @@ export class JtagInspector {
           }
           if (loc && (loc.line !== start?.line || loc.file !== start?.file || !insideStart)) break;
           if (!loc && !functionAt(table, pc)) {
+            // The end of a function (j __riscv_restore_N): a few instructions on, it is back in the caller.
+            if (this.inSaveRestore(pc)) continue;
             // Into code without source other than by a call (an interrupt handler's return into the
             // delay it interrupted, a tail call): run to the first caller that's your code, rather
             // than single-stepping through, say, a delay loop.
             this.frames = undefined;
-            const caller = (await this.ensureFrames(t)).slice(1).find((f) => functionAt(table, f.at));
-            if (!caller) continue;
-            const result = await this.runTo(t, caller.at + 1);
+            const frames = await this.ensureFrames(t);
+            const caller = frames.slice(1).find((f) => functionAt(table, f.at));
+            // No caller in your code: a tail call out of it (the last call of loop() is a jump) returns to
+            // the framework's main(), so run to there and step on, instead of single-stepping through, say, delay().
+            const back = caller ? caller.at + 1 : this.chip.arch === "xtensa" ? undefined : frames[1]?.pc;
+            if (back === undefined) continue;
+            const result = await this.runTo(t, back);
             if (result !== "reached") { reason = result; break; }
             pc = await t.readPc();
             if (locateExact(table, pc)) break;
