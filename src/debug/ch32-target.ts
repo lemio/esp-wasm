@@ -109,6 +109,14 @@ export class Ch32Target implements DebugTarget {
   private dirty = false;
   /** funprog's cached state was voided (fe 05) last thing: memory commands can go straight ahead. */
   private voided = false;
+  /** Bytes typed in the page for the program's Serial, waiting for the program to ask for input. */
+  private readonly input: number[] = [];
+  /** Send text to the program's Serial (it must read it: see src/compiler/ch32-sdi-serial.ts). */
+  sendInput(bytes: Uint8Array): void {
+    this.input.push(...bytes);
+    if (this.input.length > 256) this.input.splice(0, this.input.length - 256);
+  }
+
   /** DATA0 when the CPU stopped: the printf channel's state, put back when it runs again. */
   private data0 = 0;
   /** The program in flash, when it was checked to be the one flashed; breakpoints need it. */
@@ -336,11 +344,25 @@ export class Ch32Target implements DebugTarget {
   private async poll(): Promise<void> {
     if (this.halted || this.closed) return;
     this.lastPoll = performance.now();
-    const r = await this.x([0xfe, 0x0d, 0, 0, 0, 0, 0, 0, 0, 0, ...R(DMSTATUS)], 6);
-    if (r[r.length - 5] !== 0) return this.noAnswer();
-    const text = r.subarray(1, r.length - 5);
+    // Text typed for the program's Serial goes out as the answer to the packet the program posted to ask
+    // for input (funprog writes it back where it took the program's own); DATA0 is read back to see whether it did.
+    const n = Math.min(this.input.length, 7);
+    const send = [0, 0];
+    if (n) {
+      send[0] = (n + 4) | (this.input[0] << 8) | ((this.input[1] ?? 0) << 16) | ((this.input[2] ?? 0) << 24);
+      send[1] = (this.input[3] ?? 0) | ((this.input[4] ?? 0) << 8) | ((this.input[5] ?? 0) << 16) | ((this.input[6] ?? 0) << 24);
+    }
+    const r = await this.x([0xfe, 0x0d, ...bytes32(send[0] >>> 0), ...bytes32(send[1] >>> 0), ...R(DMSTATUS), ...(n ? R(DMDATA0) : [])], 6);
+    const tail = n ? 10 : 5;
+    if (r[r.length - tail] !== 0 || (n && r[r.length - 5] !== 0)) return this.noAnswer();
+    const text = r.subarray(1, r.length - tail);
     if (text.length) this.print(text);
-    const status = le32(r, r.length - 4);
+    const status = le32(r, r.length - tail + 1);
+    if (n) {
+      // Taken: DATA0 still holds it, or the program already answered with its next request for input (0x84).
+      const data0 = le32(r, r.length - 4);
+      if (data0 === send[0] >>> 0 || ((data0 & 0x80) !== 0 && (data0 & 0xf) <= 4)) this.input.splice(0, n);
+    }
     if (this.asleep !== undefined) {
       // Back: a chip that slept in standby wakes up through a reset.
       if (this.toldAsleep) this.host.log(`SWIO: the ${this.config.name} answers again`);

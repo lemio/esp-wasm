@@ -606,6 +606,13 @@ export class JtagInspector {
     return !!this.target;
   }
 
+  /** Text for the program's Serial over the debug connection; false when there's no such target (CH32 over SWIO carries it). */
+  sendSerial(text: string): boolean {
+    if (!this.target?.sendInput) return false;
+    this.target.sendInput(new TextEncoder().encode(text));
+    return true;
+  }
+
   /** The tail of the serial output, to find ESP-IDF's message when the program crashes. */
   private serialTail = "";
   private panic?: { at: number; text: string };

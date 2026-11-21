@@ -126,6 +126,10 @@ button[aria-expanded="true"] { background: var(--border); }
   padding: 4px 12px; background: var(--panel); color: var(--muted); font-size: 12px; text-transform: uppercase; }
 .console { flex: 1; margin: 0; padding: 8px 12px; overflow: auto;
   font: 12px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; white-space: pre-wrap; }
+.serial-input { display: flex; gap: 6px; padding: 4px 12px; border-top: 1px solid var(--border); }
+.serial-input[hidden] { display: none; }
+.serial-input input { flex: 1; min-width: 0; font: inherit; padding: 3px 6px; color: inherit; background: transparent;
+  border: 1px solid var(--border); border-radius: 4px; }
 .console .error { color: var(--error); }
 .console .ok { color: var(--ok); }
 .console .muted { color: var(--muted); }

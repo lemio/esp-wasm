@@ -78,6 +78,10 @@
           <button id="btn-clear" class="small">Clear</button>
         </div>
         <pre id="console" class="console"></pre>
+        <form id="serial-input" class="serial-input" hidden>
+          <input id="serial-text" type="text" autocomplete="off" spellcheck="false" placeholder="Send to the program's Serial (Enter sends the text and a new line)" />
+          <button class="small" type="submit">Send</button>
+        </form>
       </section>
     </main>
     <script type="module" src="/src/main.ts"></script>

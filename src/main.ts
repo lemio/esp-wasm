@@ -48,6 +48,8 @@ const selectCh32Serial = $<HTMLSelectElement>("select-ch32-serial");
 const btnUsbSerial = $<HTMLButtonElement>("btn-usb-serial");
 /** The serial monitor holds the board's USB port (not the ESP32's). */
 let usbSerialOpen = false;
+const serialForm = $<HTMLFormElement>("serial-input");
+const serialText = $<HTMLInputElement>("serial-text");
 const CH32_CHIP_NAMES = { ch32v003: "CH32V003", ch32x035: "CH32X035" } as const;
 type Ch32ChipId = keyof typeof CH32_CHIP_NAMES;
 let ch32Chip: Ch32ChipId = (() => {
@@ -215,6 +217,7 @@ function setMode(m: Mode) {
   selectCh32Via.hidden = !ch32;
   // Where Serial goes (CH32X035 Arduino): the SWIO debug connection, or the board's USB port.
   selectCh32Serial.hidden = !(mode === "ch32v003-arduino" && x035);
+  serialForm.hidden = mode !== "ch32v003-arduino";
   btnUsbSerial.hidden = !isUsbSerialProject();
   if (ch32 && selectedCh32Inspector()?.connected) btnReset.hidden = false;
   if (!ch32) {
@@ -841,6 +844,23 @@ async function openUsbSerial(waitMs: number): Promise<void> {
   if (!found) out.log("Serial is on the board's USB port: click “USB serial” to choose it (once; the page remembers it).", "muted");
   else out.log(`USB serial failed to start: ${last?.message}`, "error");
 }
+
+// Text typed in the output panel for the program's Serial: over the board's USB port when that's open,
+// else through the SWIO debug connection (the program's Serial reads it when it asks for input).
+serialForm.onsubmit = (e) => {
+  e.preventDefault();
+  const text = `${serialText.value}\n`;
+  serialText.value = "";
+  void (async () => {
+    try {
+      if (usbSerialOpen && monitor.running) await monitor.write(text);
+      else if (!selectedCh32Inspector()?.sendSerial(text)) throw new Error("not connected: flash the program, and for USB serial click “USB serial”");
+      out.log(`> ${text.trimEnd()}`, "muted");
+    } catch (err) {
+      out.log(`Couldn't send to Serial: ${(err as Error).message}`, "error");
+    }
+  })();
+};
 
 btnUsbSerial.onclick = () =>
   exclusive(async () => {

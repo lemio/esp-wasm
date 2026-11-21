@@ -54,6 +54,8 @@ export interface DebugTarget {
   readFrames(max: number): Promise<{ pc: number; sp: number; cfa?: number }[]>;
   readMemory(addr: number, length: number): Promise<Uint8Array>;
   writeMemory(addr: number, data: Uint8Array): Promise<void>;
+  /** Text for the program's Serial, when the target carries input (CH32 over SWIO). */
+  sendInput?(bytes: Uint8Array): void;
   /** Breakpoints (the S3 has two hardware ones per core); applied on the next resume or step. */
   setBreakpoints(addrs: number[]): void;
 }

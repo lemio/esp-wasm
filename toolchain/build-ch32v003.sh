@@ -141,9 +141,9 @@ ls -lh "$OUT/sysroot-ch32v003.tar.gz"
 # 3. ch32fun's CH32V003 examples (examples/; the other folders are for other chips),
 #    in the format of examples.json.
 #    Then the Arduino core's library examples (Wire, SPI, EEPROM), kind "ch32v003-arduino".
-python3 - "$SRC/examples" "$OUT/examples-ch32v003.json" "$ARDUINO_CH32/libraries" <<'PY'
+python3 - "$SRC/examples" "$OUT/examples-ch32v003.json" "$ARDUINO_CH32/libraries" "$HERE/examples/ch32-arduino" <<'PY'
 import json, pathlib, re, sys
-root, out, ard = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2]), pathlib.Path(sys.argv[3])
+root, out, ard, own = pathlib.Path(sys.argv[1]), pathlib.Path(sys.argv[2]), pathlib.Path(sys.argv[3]), pathlib.Path(sys.argv[4])
 examples = []
 def ch32fun_examples(root, chip, mcu):
     for d in sorted(p for p in root.iterdir() if p.is_dir()):
@@ -194,6 +194,21 @@ for lib in ("Wire", "SPI", "EEPROM", "USBPD_SINK"):
             "path": f"{lib}/{d.name}",
             "files": [{"path": f.name, "content": f.read_text(errors="replace")} for f in [main, *files]],
         })
+# Our own Arduino examples (toolchain/examples/ch32-arduino/<Name>/<Name>.ino), for the CH32 Arduino project type.
+for d in sorted(own.glob("*/")) if own.is_dir() else []:
+    files = sorted(f for f in d.iterdir() if f.is_file() and f.suffix in (".ino", ".c", ".cpp", ".h"))
+    main = next((f for f in files if f.suffix == ".ino"), None)
+    if not main:
+        continue
+    files.remove(main)
+    examples.append({
+        "id": f"arduino-ch32/esp-wasm/{d.name}",
+        "library": "esp-wasm",
+        "kind": "ch32v003-arduino",
+        "title": d.name.replace("_", " "),
+        "path": f"esp-wasm/{d.name}",
+        "files": [{"path": f.name, "content": f.read_text(errors="replace")} for f in [main, *files]],
+    })
 out.write_text(json.dumps({"examples": examples}))
 print(f"examples: {len(examples)} → {out}")
 PY
