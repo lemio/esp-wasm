@@ -27,6 +27,11 @@ export interface BuildOptions {
    * connection (shown in the output panel) instead of the UART; `Serial1` is still the UART.
    */
   serialOverSwio?: boolean;
+  /**
+   * CH32X035 Arduino sketches: `Serial` is the chip's USB port, a CDC device (boards.txt's "USB CDC Serial"),
+   * built against the second precompiled core. `Serial1` is still the UART.
+   */
+  usbSerial?: boolean;
   /** Libraries the user installed (from the PlatformIO registry), compiled with the sketch. */
   libraries?: BuildLibrary[];
   /**

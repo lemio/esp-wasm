@@ -10,3 +10,16 @@ index 2948fc4..39e31df 100644
  #include "utility/twi.h"
  #include "PinAF_ch32yyxx.h"
  
+diff --git a/cores/arduino/usbfs_x035/usb_desc.c b/cores/arduino/usbfs_x035/usb_desc.c
+index 2f57139..188fabd 100644
+--- a/cores/arduino/usbfs_x035/usb_desc.c
++++ b/cores/arduino/usbfs_x035/usb_desc.c
+@@ -30,7 +30,7 @@ const uint8_t  MyDevDescr[] =
+     DEF_IC_PRG_VER, 0x00, // bcdDevice 0.01
+     0x01,       // iManufacturer (String Index)
+     0x02,       // iProduct (String Index)
+-    0x00,       // iSerialNumber (String Index)
++    0x03,       // iSerialNumber (String Index) - esp-wasm: the descriptor below exists, but wasn't pointed to (browsers need it to remember the device)
+     0x01,       // bNumConfigurations 1
+ };
+ 

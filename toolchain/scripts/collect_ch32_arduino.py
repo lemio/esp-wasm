@@ -37,11 +37,15 @@ CHIPS = {
                      multilib="rv32imac_zaamo_zalrsc/ilp32", flash=63488, ram=20480,
                      libraries=["Wire", "SPI", "EEPROM", "USBPD_SINK"]),
 }
+# The CH32X035 again, with Serial on its USB port (boards.txt: menu "USB CDC Serial": -DCH32X035_USB_CDC):
+# Serial is SerialUSB, a CDC device (WCH's USBFS example code in the core). The define changes the core's own
+# sources too, so it's a second precompiled core: lib/ch32x035-cdc, flags-arduino-ch32x035-cdc.
+CHIPS["ch32x035-cdc"] = {**CHIPS["ch32x035"], "defines": ["-DCH32X035_USB_CDC"]}
 # The boards' defaults: 48 MHz internal clock, -Os, no core logs, newlib-nano.
 def defines(c: dict) -> list[str]:
     return ["-DARDUINO=10808", "-DARDUINO_ARCH_CH32V", "-DARDUINO_ARCH_CH32", f"-DARDUINO_{c['variant']}",
             f"-D{c['series']}", f"-D{c['variant']}", f'-DVARIANT_H="variant_{c["variant"]}.h"', "-DNDEBUG",
-            "-DSYSCLK_FREQ_48MHz_HSI=48000000", "-DF_CPU=48000000"]
+            "-DSYSCLK_FREQ_48MHz_HSI=48000000", "-DF_CPU=48000000", *c.get("defines", [])]
 def arch(c: dict) -> list[str]:
     return ["--target=riscv32-unknown-elf", f"-march={c['march']}", f"-mabi={c['mabi']}", "-msmall-data-limit=8", "-msave-restore"]
 CODEGEN = ["-fgnuc-version=6.3.0", "-Os", "-fsigned-char", "-ffunction-sections", "-fdata-sections", "-fno-common",
@@ -155,9 +159,9 @@ def main() -> None:
     shutil.copytree(target / "include", inc, ignore=shutil.ignore_patterns("c++"))
     cxx_dst = inc / "c++" / gcc_ver
     shutil.copytree(target / "include/c++" / gcc_ver, cxx_dst, ignore=shutil.ignore_patterns("riscv32-wch-elf"))
-    for c in CHIPS.values():
-        shutil.copytree(target / "include/c++" / gcc_ver / "riscv32-wch-elf" / c["multilib"],
-                        cxx_dst / "riscv32-wch-elf" / c["multilib"])
+    for multilib in sorted({c["multilib"] for c in CHIPS.values()}):
+        shutil.copytree(target / "include/c++" / gcc_ver / "riscv32-wch-elf" / multilib,
+                        cxx_dst / "riscv32-wch-elf" / multilib)
     for lic in ns.gcc.glob("*LICENSE*"):
         shutil.copy(lic, S / "wch" / lic.name)
 

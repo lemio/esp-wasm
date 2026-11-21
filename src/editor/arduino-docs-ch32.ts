@@ -29,7 +29,7 @@ export function ch32Docs(chip: "ch32v003" | "ch32x035"): Record<string, Doc> {
     LED_BUILTIN: { doc: "Not set on the CH32 boards: use the pin your LED is on, e.g. #define LED_PIN PD0 (PA0 on the CH32X035).", ref: `${R}variables/constants/ledbuiltin/` },
     Serial: { doc: v003
       ? "Text for the Output panel. Flashed over SWIO (a funprog programmer) it travels through the debug connection: no adapter, no wires, and the baud rate is ignored. Flashed over the USB-serial bootloader it is USART1 instead (TX on PD5, RX on PD6)."
-      : "Text for the Output panel, sent over the SWIO debug connection: no adapter and no extra wires, and the baud rate is ignored. Serial1 is the chip's real UART (USART1: TX on PB10, RX on PB11). Reading from Serial isn't supported over SWIO.", ref: `${R}functions/communication/serial/` },
+      : "Text for the Output panel, sent over the SWIO debug connection: no adapter and no extra wires, and the baud rate is ignored. Serial1 is the chip's real UART (USART1: TX on PB10, RX on PB11). Reading from Serial isn't supported over SWIO. With “Serial via USB” selected, Serial is instead the board's USB port, a USB serial device (CDC): the “USB serial” button shows it, and Serial.read() works.", ref: `${R}functions/communication/serial/` },
     Serial1: { doc: v003 ? "The chip's USART1: TX on PD5, RX on PD6." : "The chip's USART1: TX on PB10, RX on PB11. Start it with Serial1.begin(baud), and use a USB-serial adapter to read it.", ref: `${R}functions/communication/serial/` },
   });
   if (!v003) Object.assign(docs, {

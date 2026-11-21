@@ -42,11 +42,12 @@ export class SerialMonitor {
    * Open the port and start streaming. With reset, the chip is reset once
    * reading has started, so the boot log is captured too.
    */
-  async start(port: SerialPort, { reset = false } = {}): Promise<void> {
+  async start(port: SerialPort, { reset = false, dtr = false, label = "" } = {}): Promise<void> {
     await this.stop();
     this.stopping = false;
+    this.keepDtr = dtr;
     await this.open(port);
-    this.events.info(`Serial monitor at ${MONITOR_BAUD} baud`, "muted");
+    this.events.info(label ? `Serial monitor: ${label}` : `Serial monitor at ${MONITOR_BAUD} baud`, "muted");
     const loop = this.run().finally(() => {
       if (this.loop === loop) this.loop = undefined;
       this.events.stopped?.();
@@ -80,13 +81,23 @@ export class SerialMonitor {
     await loop;
   }
 
+  /**
+   * A device that wants the line open (a CDC serial port in a chip's own USB: it drops what it prints
+   * while DTR is low, like Arduino's `while (!Serial)`): DTR stays asserted.
+   */
+  private keepDtr = false;
+
   private async open(port: SerialPort): Promise<void> {
     await port.open({ baudRate: MONITOR_BAUD });
-    // Opening can assert DTR/RTS. Release both so the auto-reset circuit
-    // (or the native USB peripheral) leaves the chip running. RTS first: RTS high
-    // with DTR low, even for a moment in between, is what resets the chip.
-    await port.setSignals({ requestToSend: false });
-    await port.setSignals({ dataTerminalReady: false });
+    if (this.keepDtr) {
+      await port.setSignals({ dataTerminalReady: true, requestToSend: false });
+    } else {
+      // Opening can assert DTR/RTS. Release both so the auto-reset circuit
+      // (or the native USB peripheral) leaves the chip running. RTS first: RTS high
+      // with DTR low, even for a moment in between, is what resets the chip.
+      await port.setSignals({ requestToSend: false });
+      await port.setSignals({ dataTerminalReady: false });
+    }
     this.port = port;
   }
 

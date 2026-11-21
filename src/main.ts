@@ -44,6 +44,10 @@ const selectMode = $<HTMLSelectElement>("select-mode");
 const selectCh32Via = $<HTMLSelectElement>("select-ch32-via");
 // The CH32 chip both CH32 project types build for: the CH32V003 or the CH32X035 (QingKe V4C, 62K/20K).
 const selectCh32Chip = $<HTMLSelectElement>("select-ch32-chip");
+const selectCh32Serial = $<HTMLSelectElement>("select-ch32-serial");
+const btnUsbSerial = $<HTMLButtonElement>("btn-usb-serial");
+/** The serial monitor holds the board's USB port (not the ESP32's). */
+let usbSerialOpen = false;
 const CH32_CHIP_NAMES = { ch32v003: "CH32V003", ch32x035: "CH32X035" } as const;
 type Ch32ChipId = keyof typeof CH32_CHIP_NAMES;
 let ch32Chip: Ch32ChipId = (() => {
@@ -209,12 +213,22 @@ function setMode(m: Mode) {
   $("ch32-panel").hidden = !ch32 || x035 || !ch32Inspector?.visible;
   $("ch32x035-panel").hidden = !ch32 || !x035 || !ch32x035Inspector?.visible;
   selectCh32Via.hidden = !ch32;
+  // Where Serial goes (CH32X035 Arduino): the SWIO debug connection, or the board's USB port.
+  selectCh32Serial.hidden = !(mode === "ch32v003-arduino" && x035);
+  btnUsbSerial.hidden = !isUsbSerialProject();
   if (ch32 && selectedCh32Inspector()?.connected) btnReset.hidden = false;
   if (!ch32) {
     if (ch32Inspector?.connected) void ch32Inspector.release();
     if (ch32x035Inspector?.connected) void ch32x035Inspector.release();
   }
 }
+selectCh32Serial.value = storage.get("esp-wasm:ch32-serial") === "usb" ? "usb" : "swio";
+selectCh32Serial.onchange = () => {
+  storage.set("esp-wasm:ch32-serial", selectCh32Serial.value);
+  setMode(mode);
+  if (isUsbSerialProject()) void openUsbSerial(0);
+  else if (usbSerialOpen) void monitor.stop();
+};
 const savedCh32Via = () => (storage.get("esp-wasm:ch32-via") === "funprog" ? "funprog" : "iap");
 selectCh32Via.value = savedCh32Via();
 setMode(mode);
@@ -430,20 +444,22 @@ const monitor = new SerialMonitor({
     out.serial(shown);
   },
   info: (message, level = "muted") => out.log(message, level),
-  portChanged: (port) => flasher.usePort(port),
+  portChanged: (port) => { if (!usbSerialOpen) flasher.usePort(port); },
   stopped: () => {
+    usbSerialOpen = false;
     debug.detach();
     refreshButtons();
   },
 });
 
 const setStatus = (text: string) => (status.textContent = text);
-const allButtons = [btnFlash, btnBuild, btnConnect, btnBoot, btnReset, btnMonitor];
+const allButtons = [btnFlash, btnBuild, btnConnect, btnBoot, btnReset, btnMonitor, btnUsbSerial];
 let busy = false;
 
 const refreshButtons = () => {
   btnConnect.textContent = flasher.connected ? `Disconnect (${flasher.chip})` : "Connect";
   btnMonitor.textContent = monitor.running ? "Stop monitor" : "Monitor";
+  btnUsbSerial.textContent = monitor.running && usbSerialOpen ? "Stop USB serial" : "USB serial";
   for (const b of allButtons) b.disabled = busy;
   // Only while the page holds the port: the monitor runs, or an esptool session is open.
   btnDisconnect.disabled = busy || !(monitor.running || flasher.connected);
@@ -548,7 +564,7 @@ async function build(retry?: () => void): Promise<FlashPart[] | undefined> {
       const built = sourceTexts();
       // With the inspector open, the code is built for it: unoptimized, so every local variable can be read.
       const debugInfo = selectedCh32Inspector()?.visible ?? false;
-      const result = await compiler.build(files.map((f) => ({ path: f.path, content: f.model.getValue() })), { target: "ch32v003", framework: mode === "ch32v003-arduino" ? "arduino" : "ch32fun", chip: ch32Chip, debugInfo, serialOverSwio: ch32Chip === "ch32x035" || selectCh32Via.value === "funprog" });
+      const result = await compiler.build(files.map((f) => ({ path: f.path, content: f.model.getValue() })), { target: "ch32v003", framework: mode === "ch32v003-arduino" ? "arduino" : "ch32fun", chip: ch32Chip, debugInfo, usbSerial: isUsbSerialProject(), serialOverSwio: ch32Chip === "ch32x035" || selectCh32Via.value === "funprog" });
       for (const f of files) setDiagnostics(f.model, result.diagnostics, f.path);
       ch32Built[ch32Chip] = { chip: ch32Chip, sources: sourcesKey(), lineTable: result.lineTable, elf: result.elf, image: result.parts[0].data, texts: built };
       out.log(`Build OK in ${(result.durationMs / 1000).toFixed(1)}s, app.bin ${result.parts[0].data.length} bytes (${CH32_CHIP_NAMES[ch32Chip]})${debugInfo ? ", with debug info for the inspector" : ""}`, "ok");
@@ -751,6 +767,8 @@ async function flashCh32Funprog() {
   downloadLinks(parts, ch32Chip);
   // The active inspector holds the programmer, and its breakpoints are in the old program's flash.
   await selectedCh32Inspector()?.release();
+  // The board's USB serial port goes away while it's flashed and comes back as a new one.
+  if (usbSerialOpen) await monitor.stop();
   try {
     await prog.open();
     setStatus(`Connecting to the ${CH32_CHIP_NAMES[ch32Chip]}…`);
@@ -770,7 +788,78 @@ async function flashCh32Funprog() {
   if (built) ch32NowRuns(built);
   // Connected right away: the program's printf comes over SWIO, and it can be paused and stepped.
   void selectedCh32Inspector()?.reconnect();
+  // Serial over the board's USB port: it shows up a moment after the program starts.
+  if (isUsbSerialProject()) await openUsbSerial(8000);
 }
+
+// ---- Serial over the CH32X035's USB port (CDC) ----
+
+/** WCH's CDC example IDs, which the core's descriptor keeps (cores/arduino/usbfs_x035/usb_desc.c). */
+const CH32X035_CDC = { usbVendorId: 0x1a86, usbProductId: 0xfe0c };
+/** A CH32X035 Arduino project whose Serial is the USB port. */
+function isUsbSerialProject(): boolean {
+  return mode === "ch32v003-arduino" && ch32Chip === "ch32x035" && selectCh32Serial.value === "usb";
+}
+
+/** The board's USB serial port, when this page was allowed to use it before; waits `waitMs` for it to appear. */
+async function findUsbSerialPort(waitMs: number): Promise<SerialPort | undefined> {
+  if (!isWebSerialSupported()) return undefined;
+  const deadline = performance.now() + waitMs;
+  do {
+    const port = (await navigator.serial.getPorts()).find((p) => {
+      const info = p.getInfo();
+      return info.usbVendorId === CH32X035_CDC.usbVendorId && info.usbProductId === CH32X035_CDC.usbProductId;
+    });
+    if (port) return port;
+    await new Promise((r) => setTimeout(r, 300));
+  } while (performance.now() < deadline);
+  return undefined;
+}
+
+/** Show what the board prints on its USB port, if the page may already use it; else say how to allow it. */
+async function openUsbSerial(waitMs: number): Promise<void> {
+  await monitor.stop();
+  // The port can be listed before the board has finished enumerating: opening is tried again for a while.
+  const deadline = performance.now() + Math.max(waitMs, 0);
+  let last: Error | undefined;
+  let found = false;
+  do {
+    const port = await findUsbSerialPort(0);
+    if (port) {
+      found = true;
+      try {
+        usbSerialOpen = true;
+        await monitor.start(port, { dtr: true, label: "the board's USB serial port" });
+        return;
+      } catch (e) {
+        usbSerialOpen = false;
+        last = e as Error;
+      }
+    }
+    await new Promise((r) => setTimeout(r, 400));
+  } while (performance.now() < deadline);
+  if (!found) out.log("Serial is on the board's USB port: click “USB serial” to choose it (once; the page remembers it).", "muted");
+  else out.log(`USB serial failed to start: ${last?.message}`, "error");
+}
+
+btnUsbSerial.onclick = () =>
+  exclusive(async () => {
+    if (monitor.running && usbSerialOpen) {
+      await monitor.stop();
+      out.log("USB serial stopped.", "muted");
+      return;
+    }
+    try {
+      // The first time (or after the page lost its permission): the browser's port chooser, only this device.
+      const port = (await findUsbSerialPort(0)) ?? (await navigator.serial.requestPort({ filters: [CH32X035_CDC] }));
+      await monitor.stop();
+      usbSerialOpen = true;
+      await monitor.start(port, { dtr: true, label: "the board's USB serial port" });
+    } catch (e) {
+      usbSerialOpen = false;
+      out.log(`USB serial: ${(e as Error).message}`, "error");
+    }
+  });
 
 /** A CH32 build was flashed: its inspector follows it (kept for a page reload too). */
 function ch32NowRuns(b: Ch32Build): void {

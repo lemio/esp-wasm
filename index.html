@@ -28,6 +28,11 @@
         <option value="iap">via USB-serial (IAP bootloader)</option>
         <option value="funprog">via funprog programmer (SWIO)</option>
       </select>
+      <select id="select-ch32-serial" title="Where the sketch's Serial goes: the SWIO debug connection (text in the Output panel), or the board's USB port (a USB serial device)" hidden>
+        <option value="swio">Serial via SWIO</option>
+        <option value="usb">Serial via USB</option>
+      </select>
+      <button id="btn-usb-serial" class="secondary" title="Show what Serial prints on the board's USB port (asks which port the first time)" hidden>USB serial</button>
       <label class="check" title="Build with line tracing: while the sketch runs, the line it's executing is highlighted">
         <input type="checkbox" id="chk-trace" /> Trace
       </label>

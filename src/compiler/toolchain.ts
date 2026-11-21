@@ -54,7 +54,11 @@ async function cachedFetch(url: URL, cacheName: string, log: Log): Promise<Uint8
     log(`Downloading ${url.pathname.split("/").pop()}…`, "muted");
     res = await fetch(url);
     if (!res.ok) throw new Error(`Failed to fetch ${url}: ${res.status} ${res.statusText}`);
-    await cache?.put(url, res.clone());
+    // Store the bytes as received: a server that sends "Content-Encoding: gzip" for .tar.gz (Vite's dev server does)
+    // gives a body that no longer matches its Content-Length, and putting the response itself fails then.
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    await cache?.put(url, new Response(bytes)).catch(() => { /* a cache that can't be written only costs a download next time */ });
+    return bytes;
   }
   return new Uint8Array(await res.arrayBuffer());
 }

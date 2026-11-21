@@ -78,7 +78,8 @@ export async function buildCh32v003(
   const arduino = options.framework === "arduino";
   // WCH's Arduino core, precompiled in the sysroot (toolchain/scripts/collect_ch32_arduino.py).
   const chip = options.chip ?? "ch32v003";
-  const flags = arduino ? `flags-arduino-${chip}` : chip === "ch32v003" ? "flags" : "flags-x035";
+  const usbSerial = arduino && chip === "ch32x035" && !!options.usbSerial;
+  const flags = arduino ? `flags-arduino-${chip}${usbSerial ? "-cdc" : ""}` : chip === "ch32v003" ? "flags" : "flags-x035";
   if (arduino && !vfs.readFile(`sysroot/${flags}/common.txt`)) {
     throw new BuildError(`This toolchain doesn't have WCH's Arduino core for the ${CH32_NAME[chip]} yet (rebuild it with toolchain/build-ch32v003.sh)`);
   }
@@ -100,7 +101,7 @@ export async function buildCh32v003(
   }
 
   // Serial over the SWIO connection: a header, included into the user's files after Arduino.h.
-  const sdiSerial = arduino && !!options.serialOverSwio;
+  const sdiSerial = arduino && !!options.serialOverSwio && !usbSerial;
   if (sdiSerial) vfs.writeFile("build/sdi_serial.h", SDI_SERIAL_HEADER);
   const common = readArgs(tc, "common.txt", flags);
   // For the hardware inspector: the user's own files unoptimized, so every local variable lives in the
